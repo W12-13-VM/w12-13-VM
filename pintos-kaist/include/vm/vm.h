@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "lib/kernel/hash.h"
 
 enum vm_type
 {
@@ -54,6 +55,9 @@ struct page
 	// 매핑된 프레임이 스왑되어있는가??
 	bool is_swap;
 
+	//spt용 hash_elem
+	struct hash_elem hash_elem;
+
 	/* 타입별 데이터는 union에 바인딩됩니다.
 	 * 각 함수는 현재 union을 자동으로 감지합니다. */
 	union
@@ -97,6 +101,7 @@ struct page_operations
  * 모든 설계는 여러분에게 달려 있습니다. */
 struct supplemental_page_table
 {
+	struct hash spt_hash;
 };
 
 #include "threads/thread.h"
