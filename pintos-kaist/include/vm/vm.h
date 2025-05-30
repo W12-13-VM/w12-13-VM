@@ -71,11 +71,13 @@ struct page
 	};
 };
 
+
 /* The representation of "frame" */
 struct frame
 {
 	void *kva;
 	struct page *page;
+	struct list_elem frame_elem;
 };
 
 /* 페이지 작업을 위한 함수 테이블입니다.
@@ -104,7 +106,14 @@ struct supplemental_page_table
 	struct hash spt_hash;
 };
 
+struct frame_table
+{
+	struct list frame_list;
+};
+
+
 #include "threads/thread.h"
+extern struct frame_table *frame_table;
 void supplemental_page_table_init(struct supplemental_page_table *spt);
 bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 								  struct supplemental_page_table *src);
@@ -115,6 +124,7 @@ bool spt_insert_page(struct supplemental_page_table *spt, struct page *page);
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page);
 
 void vm_init(void);
+void frame_table_init();
 bool vm_try_handle_fault(struct intr_frame *f, void *addr, bool user,
 						 bool write, bool not_present);
 
