@@ -171,7 +171,8 @@ vm_get_frame(void)
 {
 	struct frame *frame = palloc_get_page(PAL_USER);
 	if(frame ==NULL){
-		frame=vm_evict_frame(); //이 안에서 swap out
+		// frame=vm_evict_frame(); //이 안에서 swap out
+		PANIC("TODO");
 	}
 
 	ASSERT(frame != NULL);
