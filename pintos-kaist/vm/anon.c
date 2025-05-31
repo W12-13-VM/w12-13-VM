@@ -44,6 +44,8 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 
 	struct anon_page *anon_page = &page->anon;
 	anon_page->swap_idx = -1;
+
+	return true;
 }
 
 /* 스왑 디스크에서 내용을 읽어와 페이지를 스왑인합니다. */
@@ -76,8 +78,18 @@ anon_swap_out(struct page *page)
 }
 
 /* 익명 페이지를 소멸시킵니다. PAGE는 호출자가 해제합니다. */
+/** page->frame이 존재할 경우:
+ *프레임 테이블에서 제거 (list_remove)
+ *물리 메모리 해제 (palloc_free_page)
+ *프레임 구조체 메모리 해제 (free)
+ */
 static void
 anon_destroy(struct page *page)
 {
 	struct anon_page *anon_page = &page->anon;
+	if(page->frame != NULL){
+		list_remove(&page->frame->frame_elem);
+		palloc_free_page(page->frame->kva);
+		free(page->frame);
+	}
 }

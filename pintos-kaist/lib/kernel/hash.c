@@ -19,10 +19,10 @@ static void insert_elem(struct hash *, struct list *, struct hash_elem *);
 static void remove_elem(struct hash *, struct hash_elem *);
 static void rehash(struct hash *);
 
-/* Initializes hash table H to compute hash values using HASH and
-   compare hash elements using LESS, given auxiliary data AUX. */
+/* 해시 테이블 H를 초기화하여 HASH를 사용해 해시 값을 계산하고,
+	LESS를 사용해 해시 요소를 비교하며, AUX 보조 데이터를 제공합니다. */
 bool hash_init(struct hash *h,
-			   hash_hash_func *hash, hash_less_func *less, void *aux)
+				hash_hash_func *hash, hash_less_func *less, void *aux)
 {
 	h->elem_cnt = 0;
 	h->bucket_cnt = 4;
@@ -181,6 +181,18 @@ void hash_apply(struct hash *h, hash_action_func *action)
 	  ...f로 무언가를 수행...
 	}
 
+	나중에
+
+	
+	struct hash_iterator i;
+
+	hash_first(&i ,&spt->spt_hash);
+	while(hash_next(&i)){
+		struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
+		if(page->va==va)
+			return page;
+	}
+
 	반복 중에 hash_clear(), hash_destroy(), hash_insert(),
 	hash_replace(), hash_delete() 함수로 해시 테이블 H를 수정하면
 	모든 반복자가 무효화됩니다.
@@ -249,7 +261,7 @@ bool hash_empty(struct hash *h)
 uint64_t
 hash_bytes(const void *buf_, size_t size)
 {
-	/* Fowler-Noll-Vo 32-bit hash, for bytes. */
+	/* Fowler-Noll-Vo 32-bit 해시, 바이트용. */
 	const unsigned char *buf = buf_;
 	uint64_t hash;
 
@@ -285,7 +297,7 @@ hash_int(int i)
 	return hash_bytes(&i, sizeof i);
 }
 
-/* Returns the bucket in H that E belongs in. */
+/* H에서 E가 속한 버킷을 반환합니다. */
 static struct list *
 find_bucket(struct hash *h, struct hash_elem *e)
 {
@@ -293,8 +305,8 @@ find_bucket(struct hash *h, struct hash_elem *e)
 	return &h->buckets[bucket_idx];
 }
 
-/* Searches BUCKET in H for a hash element equal to E.  Returns
-   it if found or a null pointer otherwise. */
+/* H에서 E와 동일한 해시 요소를 BUCKET에서 검색합니다.
+	찾으면 해당 요소를 반환하고, 그렇지 않으면 널 포인터를 반환합니다. */
 static struct hash_elem *
 find_elem(struct hash *h, struct list *bucket, struct hash_elem *e)
 {
@@ -309,14 +321,14 @@ find_elem(struct hash *h, struct list *bucket, struct hash_elem *e)
 	return NULL;
 }
 
-/* Returns X with its lowest-order bit set to 1 turned off. */
+/* X의 가장 낮은 비트를 1에서 0으로 변경한 값을 반환합니다. */
 static inline size_t
 turn_off_least_1bit(size_t x)
 {
 	return x & (x - 1);
 }
 
-/* Returns true if X is a power of 2, otherwise false. */
+/* X가 2의 거듭제곱이면 true를 반환하고, 그렇지 않으면 false를 반환합니다. */
 static inline size_t
 is_power_of_2(size_t x)
 {
@@ -340,41 +352,40 @@ rehash(struct hash *h)
 
 	ASSERT(h != NULL);
 
-	/* Save old bucket info for later use. */
+	/* 이전 버킷 정보를 나중에 사용할 수 있도록 저장합니다. */
 	old_buckets = h->buckets;
 	old_bucket_cnt = h->bucket_cnt;
 
-	/* Calculate the number of buckets to use now.
-	   We want one bucket for about every BEST_ELEMS_PER_BUCKET.
-	   We must have at least four buckets, and the number of
-	   buckets must be a power of 2. */
+	/* 현재 사용할 버킷 수를 계산합니다.
+	   BEST_ELEMS_PER_BUCKET당 하나의 버킷을 원합니다.
+	   최소한 네 개의 버킷이 있어야 하며, 버킷 수는 2의 거듭제곱이어야 합니다. */
 	new_bucket_cnt = h->elem_cnt / BEST_ELEMS_PER_BUCKET;
 	if (new_bucket_cnt < 4)
 		new_bucket_cnt = 4;
 	while (!is_power_of_2(new_bucket_cnt))
 		new_bucket_cnt = turn_off_least_1bit(new_bucket_cnt);
 
-	/* Don't do anything if the bucket count wouldn't change. */
+	/* 버킷 수가 변경되지 않을 경우 아무 작업도 수행하지 않습니다. */
 	if (new_bucket_cnt == old_bucket_cnt)
 		return;
 
-	/* Allocate new buckets and initialize them as empty. */
+	/* 새로운 버킷을 할당하고 비어 있는 상태로 초기화합니다. */
 	new_buckets = malloc(sizeof *new_buckets * new_bucket_cnt);
 	if (new_buckets == NULL)
 	{
-		/* Allocation failed.  This means that use of the hash table will
-		   be less efficient.  However, it is still usable, so
-		   there's no reason for it to be an error. */
+		/* 할당에 실패했습니다. 이는 해시 테이블의 사용이
+		   덜 효율적이게 된다는 것을 의미합니다. 그러나 여전히
+		   사용할 수 있으므로 이를 오류로 처리할 이유는 없습니다. */
 		return;
 	}
 	for (i = 0; i < new_bucket_cnt; i++)
 		list_init(&new_buckets[i]);
 
-	/* Install new bucket info. */
+	/* 새로운 버킷 정보를 설치합니다. */
 	h->buckets = new_buckets;
 	h->bucket_cnt = new_bucket_cnt;
 
-	/* Move each old element into the appropriate new bucket. */
+	/* 각 오래된 요소를 적절한 새로운 버킷으로 이동합니다. */
 	for (i = 0; i < old_bucket_cnt; i++)
 	{
 		struct list *old_bucket;
@@ -394,7 +405,7 @@ rehash(struct hash *h)
 	free(old_buckets);
 }
 
-/* Inserts E into BUCKET (in hash table H). */
+/* BUCKET(해시 테이블 H)에 E를 삽입합니다. */
 static void
 insert_elem(struct hash *h, struct list *bucket, struct hash_elem *e)
 {
@@ -409,3 +420,4 @@ remove_elem(struct hash *h, struct hash_elem *e)
 	h->elem_cnt--;
 	list_remove(&e->list_elem);
 }
+
