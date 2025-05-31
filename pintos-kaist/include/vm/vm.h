@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "lib/kernel/hash.h"
 
 enum vm_type
 {
@@ -39,6 +40,18 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
+
+struct file_info
+{
+	struct file *file;
+	off_t ofs; //필요할까?
+	uint8_t *upage;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+	bool writable; //필요할까?
+};
+
+
 /* "page"의 표현입니다.
  * 이것은 일종의 "부모 클래스"로, 네 개의 "자식 클래스"를 가집니다:
  * uninit_page, file_page, anon_page, 그리고 페이지 캐시(project4).
@@ -54,6 +67,9 @@ struct page
 	// 매핑된 프레임이 스왑되어있는가??
 	bool is_swap;
 
+	//spt용 hash_elem
+	struct hash_elem hash_elem;
+
 	/* 타입별 데이터는 union에 바인딩됩니다.
 	 * 각 함수는 현재 union을 자동으로 감지합니다. */
 	union
@@ -67,11 +83,13 @@ struct page
 	};
 };
 
+
 /* The representation of "frame" */
 struct frame
 {
 	void *kva;
 	struct page *page;
+	struct list_elem frame_elem;
 };
 
 /* 페이지 작업을 위한 함수 테이블입니다.
@@ -97,9 +115,17 @@ struct page_operations
  * 모든 설계는 여러분에게 달려 있습니다. */
 struct supplemental_page_table
 {
+	struct hash spt_hash;
 };
 
+struct frame_table
+{
+	struct list frame_list;
+};
+
+
 #include "threads/thread.h"
+extern struct frame_table *frame_table;
 void supplemental_page_table_init(struct supplemental_page_table *spt);
 bool supplemental_page_table_copy(struct supplemental_page_table *dst,
 								  struct supplemental_page_table *src);
@@ -110,6 +136,7 @@ bool spt_insert_page(struct supplemental_page_table *spt, struct page *page);
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page);
 
 void vm_init(void);
+void frame_table_init();
 bool vm_try_handle_fault(struct intr_frame *f, void *addr, bool user,
 						 bool write, bool not_present);
 

@@ -12,6 +12,7 @@ static bool anon_swap_out(struct page *page);
 static void anon_destroy(struct page *page);
 
 struct bitmap *swap_table;
+size_t sector_per_page ;
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations anon_ops = {
@@ -32,8 +33,10 @@ void vm_anon_init(void)
 	 * bitmap 공부가 필요할듯
 	 */
 	disk_sector_t size = disk_size(swap_disk);
-	size_t sector_size = size / PGSIZE;
-	swap_table = bitmap_create(sector_size);
+	sector_per_page = size / PGSIZE;
+	swap_table = bitmap_create(sector_per_page);
+
+
 }
 
 /* Initialize the file mapping */
@@ -60,6 +63,11 @@ anon_swap_in(struct page *page, void *kva)
 	 * 프레임 테이블에 해당 프레임 넣어주기
 	 * 프레임하고 페이지 매핑해주기
 	 */
+	size_t sector_no=swap_idx * sector_per_page;
+	for(int i=0; i<sector_per_page; i++){
+		disk_read(swap_disk, sector_no+i, buffer);
+	}
+	bitmap_scan_and_flip(swap_table, 0, sector_per_page, 0); //???? 이거맞음?
 }
 
 /* 페이지의 내용을 스왑 디스크에 기록하여 스왑아웃합니다. */

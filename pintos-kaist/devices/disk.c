@@ -214,6 +214,7 @@ disk_size(struct disk *d)
 /* 디스크 D에서 섹터 SEC_NO를 읽어 BUFFER에 저장합니다.
    BUFFER는 DISK_SECTOR_SIZE 바이트만큼의 공간이 있어야 합니다.
    내부적으로 디스크 접근을 동기화하므로, 별도의 디스크별 락은 필요하지 않습니다. */
+//섹터 단위로 읽는다. 한 페이지를 저장하려고 한다면, 8번 호출해야 할 것이다..
    void disk_read(struct disk *d, disk_sector_t sec_no, void *buffer)
 {
 	struct channel *c;

@@ -19,9 +19,9 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
-#ifdef VM
+// #ifdef VM
 #include "vm/vm.h"
-#endif
+// #endif
 
 #define MAX_ARGS 128
 #define MAX_BUF 128
@@ -764,7 +764,7 @@ install_page(void *upage, void *kpage, bool writable)
 	 * address, then map our page there. */
 	return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
 }
-#else
+// #else
 /* 여기부터 코드는 project 3 이후 사용됩니다.
  * project 2만을 위해 함수를 구현하려면 위쪽 블록에서 구현하세요. */
 
@@ -777,6 +777,26 @@ lazy_load_segment(struct page *page, void *aux)
 
 	// kva는 page 안에 이미 있다
 	// 타입별로 다른 초기화 작업을 거쳐야하나?
+	struct file_info *fi=aux;
+	
+	struct file *file=fi->file;
+	off_t ofs = fi->ofs;
+
+	uint8_t *kva = page->frame->kva;
+
+	size_t page_read_bytes = fi->read_bytes < PGSIZE ? fi->read_bytes : PGSIZE;
+	size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+	//파일에서 데이터 읽기 
+	file_seek(file, ofs);
+	if(file_read(file, kva, page_read_bytes)!=(int)page_read_bytes)
+		return false;
+
+	memset(kva+page_read_bytes, 0, page_zero_bytes);
+
+	//성공
+	return true;
+
 }
 
 /* FILE의 OFS 오프셋에서 시작하여 UPAGE 주소에 세그먼트를 로드합니다.
@@ -809,7 +829,9 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;					// 0 패딩 사이즈는 4KB - read_byte
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL; // 전달해야할 인자
+		struct file_info *fi= malloc(sizeof(struct file_info));
+
+		void *aux = fi; 
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, aux))
 			return false;
