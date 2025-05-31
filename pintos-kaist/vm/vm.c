@@ -176,7 +176,9 @@ vm_evict_frame(void)
 static struct frame *
 vm_get_frame(void)
 {
-	struct frame *frame = palloc_get_page(PAL_USER);
+	struct frame *frame = malloc(sizeof(struct frame));
+	frame->kva= palloc_get_page(PAL_USER | PAL_ZERO);
+	frame->page=NULL;
 	if(frame ==NULL){
 		// frame=vm_evict_frame(); //이 안에서 swap out
 		PANIC("TODO");
@@ -240,7 +242,7 @@ void vm_dealloc_page(struct page *page)
 }
 
 /* VA에 할당된 페이지를 요구합니다 . */
-bool vm_claim_page(void *va UNUSED)
+bool vm_claim_page(void *va)
 {
 	struct page *page = spt_find_page(&thread_current()->spt, va);
 	/* TODO: Fill this function */
