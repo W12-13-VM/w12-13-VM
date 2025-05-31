@@ -293,7 +293,8 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 				return false;
 			}
 		} else{
-			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable, NULL ,NULL) || !vm_claim_page(upage)){
+
+			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable,NULL, NULL) || !vm_claim_page(upage)){
 				return false;
 			}
 		}
