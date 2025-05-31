@@ -19,9 +19,9 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 #include "intrinsic.h"
-// #ifdef VM
+#ifdef VM
 #include "vm/vm.h"
-// #endif
+#endif
 
 #define MAX_ARGS 128
 #define MAX_BUF 128
@@ -764,7 +764,7 @@ install_page(void *upage, void *kpage, bool writable)
 	 * address, then map our page there. */
 	return (pml4_get_page(t->pml4, upage) == NULL && pml4_set_page(t->pml4, upage, kpage, writable));
 }
-// #else
+#else
 /* 여기부터 코드는 project 3 이후 사용됩니다.
  * project 2만을 위해 함수를 구현하려면 위쪽 블록에서 구현하세요. */
 
@@ -838,8 +838,6 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		fi->writable=writable;
 		void *aux = fi; 
 		
-
-
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, aux))
 			return false;
@@ -863,7 +861,7 @@ setup_stack(struct intr_frame *if_)
 	* TODO: 성공했다면 rsp 값을 적절히 설정하세요.
 	* TODO: 해당 페이지가 스택임을 표시해야 합니다. */
 	/* TODO: Your code goes here */
-	vm_do_claim_page(stack_bottom);
+	vm_claim_page(stack_bottom);
 
 	return success;
 }

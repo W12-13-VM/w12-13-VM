@@ -293,7 +293,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 				return false;
 			}
 		} else{
-			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable) || !vm_claim_page(upage)){
+			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable, NULL ,NULL) || !vm_claim_page(upage)){
 				return false;
 			}
 		}
@@ -309,4 +309,22 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 	 * TODO: 수정된 내용을 스토리지에 기록(writeback)하세요. */
 
 	//spt_remove_page 호출해야 할 듯.
+	struct thread *thread = thread_current();
+
+	struct hash_iterator i;
+	hash_first(&i, &spt->spt_hash);
+
+	while(hash_next(&i)){
+		struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
+		if(page_get_type(p)==VM_FILE){
+			if(pml4_is_dirty(&thread->pml4,p->va)){
+				// write back to file
+				PANIC("WRITE BACK TODO");
+			}
+		}
+		
+		destroy(p);
+		free(p);
+	}
+	hash_destroy(&spt->spt_hash, NULL);
 }
