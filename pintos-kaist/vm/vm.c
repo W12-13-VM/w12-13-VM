@@ -205,9 +205,7 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 
 
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-	struct page *page;	
-
-	spt_find_page(spt, addr);
+	struct page *page = spt_find_page(spt, addr);
 
 	/* TODO: Validate the fault */
 	/* bogus 폴트인지? 스택확장 폴트인지?
@@ -215,7 +213,8 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 	 * addr이 유저 스택 시작 주소 + 1MB를 넘지 않으면 스택확장 폴트
 	 * 찐폴트면 false 리턴
 	 * 아니면 vm_do_claim_page 호출	*/
-
+	if(page == NULL)
+		return false;
 	/* 스택확장 폴트에서 valid를 확인하려면 유저 스택 시작 주소 + 1MB를 넘는지 확인
 	 * addr = thread 내의 user_rsp
 	 * addr은 user_rsp보다 크면 안됨
