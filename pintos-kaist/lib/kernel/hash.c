@@ -124,6 +124,7 @@ hash_replace(struct hash *h, struct hash_elem *new)
 struct hash_elem *
 hash_find(struct hash *h, struct hash_elem *e)
 {
+	if(hash_empty(h)) return NULL;
 	return find_elem(h, find_bucket(h, e), e);
 }
 
@@ -310,8 +311,12 @@ find_bucket(struct hash *h, struct hash_elem *e)
 static struct hash_elem *
 find_elem(struct hash *h, struct list *bucket, struct hash_elem *e)
 {
+	if(e==NULL) return NULL;
 	struct list_elem *i;
 
+	struct list_elem *head= list_begin(bucket);
+	struct list_elem *tail= list_end(bucket);
+	
 	for (i = list_begin(bucket); i != list_end(bucket); i = list_next(i))
 	{
 		struct hash_elem *hi = list_elem_to_hash_elem(i);

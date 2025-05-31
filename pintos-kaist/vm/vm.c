@@ -87,7 +87,8 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		uninit_new(page, upage, init, type, aux, page_initializer);
 
 		/* TODO: 생성한 페이지를 spt에 삽입하세요. */
-		hash_insert(&spt->spt_hash, &page->hash_elem);
+		spt_insert_page(&spt, page);
+		
 	}
 err:
 	return false;
@@ -97,26 +98,32 @@ err:
 /* 가상 주소를 통해 SPT에서 페이지를 찾아 리턴합니다.
  * 에러가 발생하면 NULL을 리턴하세요 */
 struct page *
-spt_find_page(struct supplemental_page_table *spt UNUSED, void *va UNUSED)
+spt_find_page(struct supplemental_page_table *spt, void *va)
 {
-	struct page page;
-	/* TODO: Fill this function. */
-	page.va=pg_round_down(va);
-	
-	struct hash_elem *e = hash_find(&spt->spt_hash, &page.hash_elem);
-	if(&e==NULL)
-		return NULL;
-	else	
-		return hash_entry(e, struct page, hash_elem);
+    ASSERT(spt != NULL);
+    ASSERT(va != NULL);
+
+    struct page page;
+    page.va = pg_round_down(va);
+
+    struct hash_elem *e = hash_find(&spt->spt_hash, &page.hash_elem);
+
+    if (e == NULL)
+        return NULL;
+    else {
+        struct page *found_page = hash_entry(e, struct page, hash_elem);
+        return found_page;
+    }
 }
+
 
 /* Insert PAGE into spt with validation. */
 bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
-					 struct page *page UNUSED)
+					 struct page *page)
 {
 	int succ = false;
 	/* TODO: Fill this function. */
-	
+	ASSERT(page!=NULL);
 	struct hash_elem * e=hash_insert(&spt->spt_hash, &page->hash_elem);
 	if(e!=NULL) return succ; //실패했음
 
@@ -203,7 +210,6 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
 {
 
-
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
 	struct page *page = spt_find_page(spt, addr);
 
@@ -259,6 +265,8 @@ vm_do_claim_page(struct page *page)
 }
 
 bool is_less(const struct hash_elem *a, const struct hash_elem *b, void *aux){
+	if(a==NULL) return true;
+	else if (b==NULL) return true;
 	const struct page *page_a=hash_entry(a, struct page, hash_elem);
 	const struct page *page_b=hash_entry(b, struct page, hash_elem);
 	return page_a->va < page_b->va;
@@ -272,7 +280,8 @@ size_t page_hash(const struct hash_elem *e, void * aux){
 /* Initialize new supplemental page table */
 void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
 {
-	hash_init(&spt->spt_hash, page_hash, is_less, NULL);
+	if(!hash_init(&spt->spt_hash, page_hash, is_less, NULL))
+		return;
 }
 
 

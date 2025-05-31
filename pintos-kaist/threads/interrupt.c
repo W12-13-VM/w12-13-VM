@@ -324,19 +324,18 @@ pic_end_of_interrupt (int irq) {
 }
 /* Interrupt handlers. */
 
-/* Handler for all interrupts, faults, and exceptions.  This
-   function is called by the assembly language interrupt stubs in
-   intr-stubs.S.  FRAME describes the interrupt and the
-   interrupted thread's registers. */
+/* 모든 인터럽트, 결함 및 예외에 대한 핸들러입니다. 이 함수는
+	intr-stubs.S에 있는 어셈블리 언어 인터럽트 스텁에 의해 호출됩니다.
+	FRAME은 인터럽트와 인터럽트된 스레드의 레지스터를 설명합니다. */
 void
 intr_handler (struct intr_frame *frame) {
 	bool external;
 	intr_handler_func *handler;
 
-	/* External interrupts are special.
-	   We only handle one at a time (so interrupts must be off)
-	   and they need to be acknowledged on the PIC (see below).
-	   An external interrupt handler cannot sleep. */
+	/* 외부 인터럽트는 특별합니다.
+	   우리는 한 번에 하나만 처리합니다 (따라서 인터럽트는 꺼져 있어야 합니다)
+	   그리고 PIC에서 이를 확인해야 합니다 (아래 참조).
+	   외부 인터럽트 핸들러는 대기 상태가 될 수 없습니다. */
 	external = frame->vec_no >= 0x20 && frame->vec_no < 0x30;
 	if (external) {
 		ASSERT (intr_get_level () == INTR_OFF);
@@ -346,22 +345,22 @@ intr_handler (struct intr_frame *frame) {
 		yield_on_return = false;
 	}
 
-	/* Invoke the interrupt's handler. */
+	/* 인터럽트의 핸들러를 호출합니다. */
 	handler = intr_handlers[frame->vec_no];
 	if (handler != NULL)
 		handler (frame);
 	else if (frame->vec_no == 0x27 || frame->vec_no == 0x2f) {
-		/* There is no handler, but this interrupt can trigger
-		   spuriously due to a hardware fault or hardware race
-		   condition.  Ignore it. */
+		/* 핸들러가 없지만 이 인터럽트는 하드웨어 결함이나
+		   하드웨어 경쟁 조건으로 인해 스푸리어스하게 발생할 수 있습니다.
+		   이를 무시합니다. */
 	} else {
-		/* No handler and not spurious.  Invoke the unexpected
-		   interrupt handler. */
+		/* 핸들러가 없고 스푸리어스하지 않습니다.
+		   예기치 않은 인터럽트 핸들러를 호출합니다. */
 		intr_dump_frame (frame);
 		PANIC ("Unexpected interrupt");
 	}
 
-	/* Complete the processing of an external interrupt. */
+	/* 외부 인터럽트 처리를 완료합니다. */
 	if (external) {
 		ASSERT (intr_get_level () == INTR_OFF);
 		ASSERT (intr_context ());
