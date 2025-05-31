@@ -85,9 +85,9 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		}
 
 		uninit_new(page, upage, init, type, aux, page_initializer);
-
+		page->writable=writable;
 		/* TODO: 생성한 페이지를 spt에 삽입하세요. */
-		spt_insert_page(&spt, page);
+		return spt_insert_page(spt, page);
 		
 	}
 err:
@@ -118,7 +118,7 @@ spt_find_page(struct supplemental_page_table *spt, void *va)
 
 
 /* Insert PAGE into spt with validation. */
-bool spt_insert_page(struct supplemental_page_table *spt UNUSED,
+bool spt_insert_page(struct supplemental_page_table *spt,
 					 struct page *page)
 {
 	int succ = false;
