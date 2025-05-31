@@ -282,6 +282,25 @@ void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
+	struct hash_iterator i;
+	hash_first(&i, &src->spt_hash);
+	while(hash_next(&i)){
+		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+		void *upage = src_page->va;
+
+		if(src_page->operations->type == VM_UNINIT){
+			struct uninit_page *uninit = &src_page->uninit;
+			if(!vm_alloc_page_with_initializer(uninit->type, upage, src_page->writable,uninit->init,uninit->aux)){
+				return false;
+			}
+		} else{
+			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable) || !vm_claim_page(upage)){
+				return false;
+			}
+		}
+		struct page *dst_page = spt_find_page(dst, upage);
+		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+	}
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -289,6 +308,6 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 {
 	/* TODO: 스레드가 보유한 모든 supplemental_page_table을 제거하고,
 	 * TODO: 수정된 내용을 스토리지에 기록(writeback)하세요. */
-	
+
 	//spt_remove_page 호출해야 할 듯.
 }

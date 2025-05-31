@@ -36,7 +36,6 @@ void vm_anon_init(void)
 	sector_per_page = size / PGSIZE;
 	swap_table = bitmap_create(sector_per_page);
 
-
 }
 
 /* Initialize the file mapping */
@@ -47,7 +46,10 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 
 	struct anon_page *anon_page = &page->anon;
 	anon_page->swap_idx = -1;
+
+	return true;
 }
+
 
 /* 스왑 디스크에서 내용을 읽어와 페이지를 스왑인합니다. */
 static bool
@@ -63,11 +65,11 @@ anon_swap_in(struct page *page, void *kva)
 	 * 프레임 테이블에 해당 프레임 넣어주기
 	 * 프레임하고 페이지 매핑해주기
 	 */
-	size_t sector_no=swap_idx * sector_per_page;
-	for(int i=0; i<sector_per_page; i++){
-		disk_read(swap_disk, sector_no+i, buffer);
-	}
-	bitmap_scan_and_flip(swap_table, 0, sector_per_page, 0); //???? 이거맞음?
+	// size_t sector_no=swap_idx * sector_per_page;
+	// for(int i=0; i<sector_per_page; i++){
+	// 	disk_read(swap_disk, sector_no+i, buffer);
+	// }
+	// bitmap_scan_and_flip(swap_table, 0, sector_per_page, 0); //???? 이거맞음?
 }
 
 /* 페이지의 내용을 스왑 디스크에 기록하여 스왑아웃합니다. */
@@ -84,8 +86,18 @@ anon_swap_out(struct page *page)
 }
 
 /* 익명 페이지를 소멸시킵니다. PAGE는 호출자가 해제합니다. */
+/** page->frame이 존재할 경우:
+ *프레임 테이블에서 제거 (list_remove)
+ *물리 메모리 해제 (palloc_free_page)
+ *프레임 구조체 메모리 해제 (free)
+ */
 static void
 anon_destroy(struct page *page)
 {
 	struct anon_page *anon_page = &page->anon;
+	if(page->frame != NULL){
+		list_remove(&page->frame->frame_elem);
+		palloc_free_page(page->frame->kva);
+		free(page->frame);
+	}
 }
