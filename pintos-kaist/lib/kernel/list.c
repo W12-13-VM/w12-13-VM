@@ -203,39 +203,37 @@ list_push_back (struct list *list, struct list_elem *elem) {
 	list_insert (list_end (list), elem);
 }
 
-/* Removes ELEM from its list and returns the element that
-   followed it.  Undefined behavior if ELEM is not in a list.
+/* ELEM을 리스트에서 제거하고, 그 뒤에 있던 요소를 반환합니다.
+	ELEM이 리스트에 속하지 않을 경우 동작은 정의되지 않습니다.
 
-   It's not safe to treat ELEM as an element in a list after
-   removing it.  In particular, using list_next() or list_prev()
-   on ELEM after removal yields undefined behavior.  This means
-   that a naive loop to remove the elements in a list will fail:
+	제거 후 ELEM을 리스트의 요소로 취급하는 것은 안전하지 않습니다.
+	특히, 제거 후 list_next() 또는 list_prev()를 ELEM에 대해 호출하면
+	동작은 정의되지 않습니다. 이는 리스트의 요소를 제거하기 위한
+	단순 루프가 실패할 수 있음을 의미합니다:
 
- ** DON'T DO THIS **
+ ** 이렇게 하지 마세요 **
  for (e = list_begin (&list); e != list_end (&list); e = list_next (e))
  {
- ...do something with e...
+ ...e에 대해 무언가를 수행...
  list_remove (e);
  }
- ** DON'T DO THIS **
+ ** 이렇게 하지 마세요 **
 
- Here is one correct way to iterate and remove elements from a
-list:
+ 리스트에서 요소를 반복적으로 제거하는 올바른 방법은 다음과 같습니다:
 
-for (e = list_begin (&list); e != list_end (&list); e = list_remove (e))
-{
-...do something with e...
-}
+ for (e = list_begin (&list); e != list_end (&list); e = list_remove (e))
+ {
+ ...e에 대해 무언가를 수행...
+ }
 
-If you need to free() elements of the list then you need to be
-more conservative.  Here's an alternate strategy that works
-even in that case:
+ 만약 리스트의 요소를 free()해야 한다면 더 신중해야 합니다.
+ 다음은 그런 경우에도 작동하는 대안 전략입니다:
 
-while (!list_empty (&list))
-{
-struct list_elem *e = list_pop_front (&list);
-...do something with e...
-}
+ while (!list_empty (&list))
+ {
+ struct list_elem *e = list_pop_front (&list);
+ ...e에 대해 무언가를 수행...
+ }
 */
 struct list_elem *
 list_remove (struct list_elem *elem) {

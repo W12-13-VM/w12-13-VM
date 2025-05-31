@@ -838,8 +838,6 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		fi->writable=writable;
 		void *aux = fi; 
 		
-
-
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, aux))
 			return false;
