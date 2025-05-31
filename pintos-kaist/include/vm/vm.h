@@ -40,6 +40,18 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
+
+struct file_info
+{
+	struct file *file;
+	off_t ofs; //필요할까?
+	uint8_t *upage;
+	uint32_t read_bytes;
+	uint32_t zero_bytes;
+	bool writable; //필요할까?
+};
+
+
 /* "page"의 표현입니다.
  * 이것은 일종의 "부모 클래스"로, 네 개의 "자식 클래스"를 가집니다:
  * uninit_page, file_page, anon_page, 그리고 페이지 캐시(project4).
