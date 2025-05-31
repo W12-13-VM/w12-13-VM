@@ -205,9 +205,7 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 
 
 	struct supplemental_page_table *spt UNUSED = &thread_current()->spt;
-	struct page *page;	
-
-	spt_find_page(spt, addr);
+	struct page *page = spt_find_page(spt, addr);
 
 	/* TODO: Validate the fault */
 	/* bogus 폴트인지? 스택확장 폴트인지?
@@ -215,7 +213,8 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr UNUSED,
 	 * addr이 유저 스택 시작 주소 + 1MB를 넘지 않으면 스택확장 폴트
 	 * 찐폴트면 false 리턴
 	 * 아니면 vm_do_claim_page 호출	*/
-
+	if(page == NULL)
+		return false;
 	/* 스택확장 폴트에서 valid를 확인하려면 유저 스택 시작 주소 + 1MB를 넘는지 확인
 	 * addr = thread 내의 user_rsp
 	 * addr은 user_rsp보다 크면 안됨
@@ -282,6 +281,25 @@ void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
 bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 								  struct supplemental_page_table *src UNUSED)
 {
+	struct hash_iterator i;
+	hash_first(&i, &src->spt_hash);
+	while(hash_next(&i)){
+		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+		void *upage = src_page->va;
+
+		if(src_page->operations->type == VM_UNINIT){
+			struct uninit_page *uninit = &src_page->uninit;
+			if(!vm_alloc_page_with_initializer(uninit->type, upage, src_page->writable,uninit->init,uninit->aux)){
+				return false;
+			}
+		} else{
+			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable) || !vm_claim_page(upage)){
+				return false;
+			}
+		}
+		struct page *dst_page = spt_find_page(dst, upage);
+		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+	}
 }
 
 /* Free the resource hold by the supplemental page table */
@@ -289,6 +307,6 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
 {
 	/* TODO: 스레드가 보유한 모든 supplemental_page_table을 제거하고,
 	 * TODO: 수정된 내용을 스토리지에 기록(writeback)하세요. */
-	
+
 	//spt_remove_page 호출해야 할 듯.
 }
