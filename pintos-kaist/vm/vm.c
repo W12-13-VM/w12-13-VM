@@ -101,8 +101,8 @@ struct page *
 spt_find_page(struct supplemental_page_table *spt, void *va)
 {
     ASSERT(spt != NULL);
-    ASSERT(va != NULL);
-	// if(va==NULL) return NULL;
+    // ASSERT(va != NULL);
+	if(va==NULL) return NULL;
 
 	struct page temp;
 	temp.va = pg_round_down(va);
