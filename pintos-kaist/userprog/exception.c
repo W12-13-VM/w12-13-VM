@@ -143,6 +143,7 @@ page_fault(struct intr_frame *f)
    이 주소가 반드시 폴트를 일으킨 명령어의 주소(즉, f->rip)는 아닙니다. */
 
 	fault_addr = (void *)rcr2();
+	// ASSERT(fault_addr!=NULL);
 
 	/* 인터럽트를 다시 활성화합니다.
    (인터럽트는 CR2 레지스터가 변경되기 전에 안전하게 값을 읽기 위해 잠시 꺼두었던 것입니다.) */

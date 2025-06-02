@@ -777,27 +777,37 @@ lazy_load_segment(struct page *page, void *aux)
 	/* TODO: 이 함수는 해당 VA(가상 주소)에서 첫 페이지 폴트가 발생할 때 호출됩니다. */
 	/* TODO: 이 함수를 호출할 때 VA는 사용할 수 있습니다. */
 
-	// kva는 page 안에 이미 있다
-	// 타입별로 다른 초기화 작업을 거쳐야하나?
 	struct file_info *fi=aux;
-	
 	struct file *file=fi->file;
 	off_t ofs = fi->ofs;
-
 	uint8_t *kva = page->frame->kva;
-
 	size_t page_read_bytes = fi->read_bytes < PGSIZE ? fi->read_bytes : PGSIZE;
 	size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
+	bool success=false;
 	//파일에서 데이터 읽기 
 	file_seek(file, ofs);
-	if(file_read(file, kva, page_read_bytes)!=(int)page_read_bytes)
-		return false;
+	if(file_read(file, kva, page_read_bytes)==(int)page_read_bytes){
+		memset(kva+page_read_bytes, 0, page_zero_bytes);
+		success=true;
+	}
 
-	memset(kva+page_read_bytes, 0, page_zero_bytes);
-
+	free(aux);
 	//성공
-	return true;
+	return success;
+	// struct file_info *lazy_info = (struct file_info *)aux;
+	// struct file *read_file = lazy_info->file;
+	
+	// off_t my_read_byte = file_read_at(read_file, page->frame->kva, lazy_info->read_bytes, lazy_info->ofs);
+
+	// if (my_read_byte != (off_t)lazy_info->read_bytes)
+	// {
+	// 	return false;
+	// }
+	// memset(page->frame->kva + lazy_info->read_bytes, 0, lazy_info->zero_bytes);
+
+	// free(lazy_info);
+	// return true;
  
 }
 
@@ -831,14 +841,15 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;					// 0 패딩 사이즈는 4KB - read_byte
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		struct file_info *fi= malloc(sizeof(struct file_info));
-		fi->file=file;
-		fi->ofs=ofs;
-		fi->upage=upage;
-		fi->read_bytes=read_bytes;
-		fi->zero_bytes=zero_bytes;
-		fi->writable=writable;
-		void *aux = fi; 
+		struct file_info *aux= malloc(sizeof(struct file_info));
+		if(aux==NULL) return false;
+
+		aux->file=file_reopen(file);;
+		aux->ofs=ofs;
+		aux->upage;
+		aux->read_bytes=read_bytes;
+		aux->zero_bytes=zero_bytes;
+		aux->writable=writable;
 		
 		if (!vm_alloc_page_with_initializer(VM_ANON, upage,
 											writable, lazy_load_segment, aux))
@@ -847,6 +858,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
+		ofs+=page_read_bytes;
 		upage += PGSIZE;
 	}
 	return true;
