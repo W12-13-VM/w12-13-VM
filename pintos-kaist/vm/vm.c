@@ -312,6 +312,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 		struct page *dst_page = spt_find_page(dst, upage);
 		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
 	}
+	return true;
 }
 
 void page_desturctor(struct hash_elem *e){
