@@ -101,8 +101,8 @@ struct page *
 spt_find_page(struct supplemental_page_table *spt, void *va)
 {
     ASSERT(spt != NULL);
-    ASSERT(va != NULL);
-	// if(va==NULL) return NULL;
+    // ASSERT(va != NULL);
+	if(va==NULL) return NULL;
 
 	struct page temp;
 	temp.va = pg_round_down(va);
@@ -133,13 +133,9 @@ bool spt_insert_page(struct supplemental_page_table *spt,
 
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page)
 {
+	hash_delete(&spt->spt_hash, &page->hash_elem);	
 	vm_dealloc_page(page);
-	/** TODO: page 해제
-	 * 매핑된 프레임을 해제해야하나?
-	 * 프레임이 스왑되어있는지 체크할것?
-	 * 아마 pml4_clear_page 사용하면 된대요
-	 */
-	return true;
+
 }
 
 /* Get the struct frame, that will be evicted. */
@@ -237,6 +233,7 @@ bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr ,
 }
 
 /* Free the page.
+프레임 해제, 파일 wriet-back, 페이지 테이블 매핑 해제 등 모든 자원 정리 수행 
  * DO NOT MODIFY THIS FUNCTION. */
 void vm_dealloc_page(struct page *page)
 {
@@ -317,29 +314,16 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
 	}
 }
 
+void page_desturctor(struct hash_elem *e){
+	struct page *p = hash_entry(e, struct page, hash_elem);
+	vm_dealloc_page(p);
+}
+
 /* Free the resource hold by the supplemental page table */
-void supplemental_page_table_kill(struct supplemental_page_table *spt UNUSED)
+void supplemental_page_table_kill(struct supplemental_page_table *spt)
 {
-	/* TODO: 스레드가 보유한 모든 supplemental_page_table을 제거하고,
-	 * TODO: 수정된 내용을 스토리지에 기록(writeback)하세요. */
-
-	//spt_remove_page 호출해야 할 듯.
-	struct thread *thread = thread_current();
-
-	struct hash_iterator i;
-	hash_first(&i, &spt->spt_hash);
-
-	while(hash_next(&i)){
-		struct page *p = hash_entry(hash_cur(&i), struct page, hash_elem);
-		if(page_get_type(p)==VM_FILE){
-			if(pml4_is_dirty(&thread->pml4,p->va)){
-				// write back to file
-				PANIC("WRITE BACK TODO");
-			}
-		}
-		
-		destroy(p);
-		free(p);
-	}
-	hash_destroy(&spt->spt_hash, NULL);
+	/*hash 테이블 순회하면서 동시에 엔트리 삭제(hash_delete)하면 안됨
+	그럼 내부 구조가 바뀌어버리니 iterator가 안전하게 동작 하지 않음 
+	*/
+	hash_destroy(&spt->spt_hash, page_desturctor);
 }

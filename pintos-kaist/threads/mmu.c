@@ -278,6 +278,7 @@ bool pml4_set_page(uint64_t *pml4, void *upage, void *kpage, bool rw)
 /* 사용자 가상 페이지 UPAGE를 페이지 디렉토리 PD에서 "존재하지 않음"으로 표시합니다.
  * 이후 페이지에 대한 접근은 페이지 폴트를 발생시킵니다. 페이지 테이블 엔트리의 다른 비트는 유지됩니다.
  * UPAGE는 매핑되어 있을 필요가 없습니다. */
+/* 실제 물리 메모리(프레임)은 해제하지 않고, 단순히 페이지 테이블 엔트리만 삭제.*/
 void pml4_clear_page(uint64_t *pml4, void *upage)
 {
 	uint64_t *pte;
