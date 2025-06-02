@@ -154,14 +154,17 @@ void check_buffer(const void *buffer, unsigned size)
 
 	for (uint8_t *addr = start; addr <= end; addr += PGSIZE)
 	{
-		if (!is_user_vaddr(addr) || pml4_get_page(cur->pml4, addr) == NULL)
-		{
-			// printf("Invalid page address: %p\n", addr);
+		if (!is_user_vaddr(addr))
 			sys_exit(-1);
+
+		// pml4에 이미 매핑돼 있는지 확인하고, 없으면 vm_claim_page()로 요구
+		if (pml4_get_page(cur->pml4, addr) == NULL)
+		{
+			if (!vm_claim_page(addr))
+				sys_exit(-1);
 		}
 	}
 }
-
 /* addr은 mmap으로 할당받은 시작주소 */
 void sys_munmap(void *addr)
 {
