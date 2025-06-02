@@ -85,7 +85,7 @@ void hash_destroy(struct hash *h, hash_action_func *destructor)
 	free(h->buckets);
 }
 
-/* NEW를 해시 테이블 H에 삽입하고, 동일한 요소가 이미 테이블에 없으면
+/* NEW를 해시 테이블 H에 삽입하고, 동일한 요소가 테이블에 없으면
 	널 포인터를 반환합니다.
 	만약 동일한 요소가 이미 테이블에 있다면, NEW를 삽입하지 않고
 	해당 요소를 반환합니다. */
@@ -124,6 +124,7 @@ hash_replace(struct hash *h, struct hash_elem *new)
 struct hash_elem *
 hash_find(struct hash *h, struct hash_elem *e)
 {
+	if(hash_empty(h)) return NULL;
 	return find_elem(h, find_bucket(h, e), e);
 }
 
@@ -310,6 +311,7 @@ find_bucket(struct hash *h, struct hash_elem *e)
 static struct hash_elem *
 find_elem(struct hash *h, struct list *bucket, struct hash_elem *e)
 {
+	if(e==NULL) return NULL;
 	struct list_elem *i;
 
 	for (i = list_begin(bucket); i != list_end(bucket); i = list_next(i))
@@ -420,4 +422,5 @@ remove_elem(struct hash *h, struct hash_elem *e)
 	h->elem_cnt--;
 	list_remove(&e->list_elem);
 }
+
 

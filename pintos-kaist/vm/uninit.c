@@ -51,6 +51,7 @@ uninit_initialize (struct page *page, void *kva) {
 	void *aux = uninit->aux;
 
 	/* TODO: 이 함수를 수정해야 할 수도 있습니다. */
+	//여기에서 init이 존재하면 lazy_load_segment(page, aux)가 호출됨. 없는 경우 그냥 true -> 그래서 수정이 필요한 걸수도 
 	return uninit->page_initializer (page, uninit->type, kva) &&
 		(init ? init (page, aux) : true);
 }

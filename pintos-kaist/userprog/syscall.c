@@ -32,7 +32,6 @@ unsigned sys_tell(int fd);
 void check_buffer(const void *buffer, unsigned size);
 int sys_wait(tid_t pid);
 int sys_dup2(int oldfd, int newfd);
-void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
 
 struct lock filesys_lock;
 /* 시스템 콜.
@@ -125,11 +124,11 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_DUP2:
 		f->R.rax = sys_dup2(arg1, arg2);
 		break;
-	case SYS_MMAP:
-		f->R.rax = sys_mmap(arg1, arg2, arg3, arg4, arg5);
-		break;
-	case SYS_MUNMAP:
-		break;
+	// case SYS_MMAP:
+	// 	f->R.rax = sys_mmap(arg1, arg2, arg3, arg4, arg5);
+	// 	break;
+	// case SYS_MUNMAP:
+	// 	break;
 	default:
 		thread_exit();
 		break;
@@ -155,14 +154,17 @@ void check_buffer(const void *buffer, unsigned size)
 
 	for (uint8_t *addr = start; addr <= end; addr += PGSIZE)
 	{
-		if (!is_user_vaddr(addr) || pml4_get_page(cur->pml4, addr) == NULL)
-		{
-			// printf("Invalid page address: %p\n", addr);
+		if (!is_user_vaddr(addr))
 			sys_exit(-1);
+
+		// pml4에 이미 매핑돼 있는지 확인하고, 없으면 vm_claim_page()로 요구
+		if (pml4_get_page(cur->pml4, addr) == NULL)
+		{
+			if (!vm_claim_page(addr))
+				sys_exit(-1);
 		}
 	}
 }
-
 /* addr은 mmap으로 할당받은 시작주소 */
 void sys_munmap(void *addr)
 {
@@ -173,39 +175,39 @@ void sys_munmap(void *addr)
 	 */
 }
 
-void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
-{
-	int filesize = sys_filesize(fd);
-	if (filesize == 0 || length == 0 || fd == 0 || fd == 1)
-		return MAP_FAILED;
+// void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+// {
+// 	int filesize = sys_filesize(fd);
+// 	if (filesize == 0 || length == 0 || fd == 0 || fd == 1)
+// 		return MAP_FAILED;
 
-	if ((uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
-		return MAP_FAILED;
+// 	if ((uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
+// 		return MAP_FAILED;
 
-	void *start_page = addr;
-	void *end_page = addr + length;
+// 	void *start_page = addr;
+// 	void *end_page = addr + length;
 
-	for (; end_page > start_page; start_page + PGSIZE)
-	{
-		if (spt_find_page(&thread_current()->spt, start_page) != NULL)
-			return MAP_FAILED;
-	}
+// 	for (; end_page > start_page; start_page + PGSIZE)
+// 	{
+// 		if (spt_find_page(thread_current()->spt, start_page) != NULL)
+// 			return MAP_FAILED;
+// 	}
 
-	size_t remain_length = length;
-	void *cur_addr = addr;
-	off_t cur_offset = offset;
+// 	size_t remain_length = length;
+// 	void *cur_addr = addr;
+// 	off_t cur_offset = offset;
 
-	while (remain_length > 0)
-	{
-		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
-		do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset);
-		remain_length -= PGSIZE;
-		cur_addr += PGSIZE;
-		cur_offset += PGSIZE;
-	}
+// 	while (remain_length > 0)
+// 	{
+// 		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
+// 		do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset);
+// 		remain_length -= PGSIZE;
+// 		cur_addr += PGSIZE;
+// 		cur_offset += PGSIZE;
+// 	}
 
-	return addr;
-}
+// 	return addr;
+// }
 
 int sys_exec(char *file_name)
 {
