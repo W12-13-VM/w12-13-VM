@@ -40,8 +40,8 @@ is_head (struct list_elem *elem) {
 	return elem != NULL && elem->prev == NULL && elem->next != NULL;
 }
 
-/* Returns true if ELEM is an interior element,
-   false otherwise. */
+/* ELEM이 내부 요소이면 true를 반환하고,
+	그렇지 않으면 false를 반환합니다. */
 static inline bool
 is_interior (struct list_elem *elem) {
 	return elem != NULL && elem->prev != NULL && elem->next != NULL;

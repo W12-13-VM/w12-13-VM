@@ -44,7 +44,7 @@ struct thread;
 struct file_info
 {
 	struct file *file;
-	off_t ofs; //필요할까?
+	off_t ofs; //필요할까? <<그렇네요 
 	uint8_t *upage;
 	uint32_t read_bytes;
 	uint32_t zero_bytes;
