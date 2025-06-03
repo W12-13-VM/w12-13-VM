@@ -77,9 +77,6 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	uint64_t arg5 = f->R.r8;
 	uint64_t arg6 = f->R.r9;
 	// syscall_handler 내부
-	if (is_user_vaddr(f->rsp)) {
-		thread_current()->user_rsp = f->rsp;
-	}
 	switch (syscall_num)
 	{
 	case SYS_HALT:
