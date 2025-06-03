@@ -186,11 +186,12 @@ vm_get_frame(void)
 
 /* Growing the stack. */
 static void
-vm_stack_growth(void *addr UNUSED)
+vm_stack_growth(void *addr)
 {
 	/* 스택 최하단에 익명 페이지를 추가하여 사용
 	 * addr은 PGSIZE로 내림(정렬)하여 사용	 */
-	vm_alloc_page(VM_ANON, addr, true); // 스택 최하단에 익명 페이지 추가
+	uint64_t *address = (uint64_t *)pg_round_down(addr);
+	vm_alloc_page(VM_ANON, address, true); // 스택 최하단에 익명 페이지 추가
 }
 
 /* Handle the fault on write_protected page */
@@ -203,29 +204,34 @@ vm_handle_wp(struct page *page UNUSED)
 /* 인터럽트 프레임, addr=폴트를 일으킨 주소(코드일 수도있고 데이터일수도 있음),
 user=사용자 접근인지 커널 접근인지, write=true면 쓰기 허용 false면 읽기만
 not_present: true면 존재하지 않는 페이지, false면  */
-bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr ,
-						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
+bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
+						 bool user UNUSED, bool write UNUSED, bool not_present )
 {
 
 	// ASSERT(addr!=NULL);
+	if(!not_present){
+		return false;
+	}
+
+	if(!is_user_vaddr(addr)) return false;
+
 	struct supplemental_page_table *spt  = &thread_current()->spt;
-	
 	struct page *page = spt_find_page(spt, addr);
 
-	/* TODO: Validate the fault */
-	/* bogus 폴트인지? 스택확장 폴트인지?
-	 * SPT 뒤져서 존재하면 bogus 폴트!!
-	 * addr이 유저 스택 시작 주소 + 1MB를 넘지 않으면 스택확장 폴트
-	 * 찐폴트면 false 리턴
-	 * 아니면 vm_do_claim_page 호출	*/
-	if(page == NULL)
+	if(page == NULL){
+		if (addr >= f->rsp - 8 && addr >= USER_STACK - (1 << 20) )  {
+			vm_stack_growth(pg_round_down(addr));
+			return true;
+		}
 		return false;
+	}
 	/* 스택확장 폴트에서 valid를 확인하려면 유저 스택 시작 주소 + 1MB를 넘는지 확인
 	 * addr = thread 내의 user_rsp
 	 * addr은 user_rsp보다 크면 안됨
 	 * stack_growth 호출해야함 */
 
-	/* TODO: Your code goes here */
+	 /*
+	 not_present가 true면 vm_claim_page로 할당받아야 함?*/
 
 	return vm_do_claim_page(page);
 }
