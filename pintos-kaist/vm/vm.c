@@ -217,9 +217,10 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
 
 	struct supplemental_page_table *spt  = &thread_current()->spt;
 	struct page *page = spt_find_page(spt, addr);
+	void *rsp = user ? f->rsp : thread_current()->user_rsp;
 
 	if(page == NULL){
-		if (addr >= f->rsp - 8 && addr >= USER_STACK - (1 << 20) )  {
+		if (addr >= rsp - 8 && addr >= USER_STACK - (1 << 20) && addr <= USER_STACK )  {
 			vm_stack_growth(pg_round_down(addr));
 			return true;
 		}
