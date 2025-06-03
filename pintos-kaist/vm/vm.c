@@ -65,7 +65,6 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		 * TODO: uninit_new 호출 후에는 필요한 필드를 수정해야 합니다. */
 		bool (*page_initializer)(struct page *, enum vm_type, void *kva);
 		struct page *page = malloc(sizeof(struct page));
-		page->writable = writable;
 
 		switch (VM_TYPE(type))
 		{
@@ -261,7 +260,11 @@ vm_do_claim_page(struct page *page)
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
-	pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable);
+	if(!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)){
+		// swap-out? 
+		PANIC("TODO");
+	}
+	
 
 	return swap_in(page, frame->kva);
 }
@@ -315,50 +318,66 @@ void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
 // 	return true;
 // }
 
-bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED, struct supplemental_page_table *src UNUSED) 
+
+static void *duplicate_aux(struct page *src_page)
 {
-	struct hash_iterator i;
-	hash_first(&i, &src->spt_hash);
+   
+	struct file_info *src_info = (struct file_info *)src_page->uninit.aux;
+	struct file_info *dst_info = malloc(sizeof(struct file_info));
 
-    while (hash_next(&i))
-	{
-		// src_page 정보
-		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-		enum vm_type type = src_page->operations->type;
-		void *upage = src_page->va;
-		bool writable = src_page->writable;
+	dst_info->file = file_reopen(src_info->file);
+	dst_info->ofs = src_info->ofs;
+	dst_info->read_bytes = src_info->read_bytes;
+	dst_info->zero_bytes = src_info->zero_bytes;
 
-		/* 1) type이 uninit이면 */
-		if (type == VM_UNINIT)
-		{ // uninit page 생성 & 초기화
-			vm_initializer *init = src_page->uninit.init;
-			void *aux = src_page->uninit.aux;
-			vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux);
-			continue;
-		}
-
-		/* 2) type이 uninit이 아니면 */
-		if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, NULL)) // uninit page 생성 & 초기화
-			// init(lazy_load_segment)는 page_fault가 발생할때 호출됨
-			// 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
-			return false;
-
-		// vm_claim_page으로 요청해서 매핑 & 페이지 타입에 맞게 초기화
-		if (!vm_claim_page(upage))
-			return false;
-
-		// 매핑된 프레임에 내용 로딩
-		struct page *dst_page = spt_find_page(dst, upage);
-		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
-	}
-	return true;
-
+	return dst_info;
+   
 }
-void page_desturctor(struct hash_elem *e){
+
+bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct supplemental_page_table *src )
+{
+   struct hash_iterator i;
+   hash_first(&i, &src->spt_hash);
+   struct thread *cur = thread_current();
+
+   while (hash_next(&i))
+   {
+      // src_page 정보
+      struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
+      enum vm_type type = src_page->operations->type;
+      void *upage = src_page->va;
+      bool writable = src_page->writable;
+
+      /* 1) type이 uninit이면 */
+      if (type == VM_UNINIT)
+      { // uninit page 생성 & 초기화
+         vm_initializer *init = src_page->uninit.init;
+         void *aux = duplicate_aux(src_page);
+         vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux);
+         continue;
+      }
+
+      /* 2) type이 uninit이 아니면 */
+      if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, NULL)) // uninit page 생성 & 초기화
+         // init(lazy_load_segment)는 page_fault가 발생할때 호출됨
+         // 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
+         return false;
+
+      // vm_claim_page으로 요청해서 매핑 & 페이지 타입에 맞게 초기화
+      if (!vm_claim_page(upage))
+         return false;
+
+      // 매핑된 프레임에 내용 로딩
+      struct page *dst_page = spt_find_page(dst, upage);
+      memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+   }
+   return true;
+}
+void page_desturctor(struct hash_elem *e, void * aux){
 	struct page *p = hash_entry(e, struct page, hash_elem);
 	vm_dealloc_page(p);
 }
+
 
 /* Free the resource hold by the supplemental page table */
 void supplemental_page_table_kill(struct supplemental_page_table *spt)
@@ -366,5 +385,6 @@ void supplemental_page_table_kill(struct supplemental_page_table *spt)
 	/*hash 테이블 순회하면서 동시에 엔트리 삭제(hash_delete)하면 안됨
 	그럼 내부 구조가 바뀌어버리니 iterator가 안전하게 동작 하지 않음 
 	*/
-	hash_destroy(&spt->spt_hash, page_desturctor);
+	// hash_destroy(&spt->spt_hash, page_desturctor);
+	hash_clear(&spt->spt_hash, page_desturctor);
 }

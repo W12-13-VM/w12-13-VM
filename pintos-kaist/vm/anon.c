@@ -77,6 +77,7 @@ static bool
 anon_swap_out(struct page *page)
 {
 	struct anon_page *anon_page = &page->anon;
+	PANIC("TODO");
 	/** TODO: disk_write를 사용하여 disk에 기록
 	 * 섹터 크기는 512바이트라 8번 반복해야합니다
 	 * 비어있는 스왑 슬롯을 스왑 테이블에서 검색

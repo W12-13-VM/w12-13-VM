@@ -29,7 +29,7 @@ int sys_read(int fd, void *buffer, unsigned size);
 int find_unused_fd(const char *file);
 void sys_seek(int fd, unsigned position);
 unsigned sys_tell(int fd);
-void check_buffer(const void *buffer, unsigned size);
+void check_buffer(const void *buffer, unsigned size, bool write);
 int sys_wait(tid_t pid);
 int sys_dup2(int oldfd, int newfd);
 
@@ -146,8 +146,12 @@ void check_address(const uint64_t *addr)
 	}
 }
 
-void check_buffer(const void *buffer, unsigned size)
+void check_buffer(const void *buffer, unsigned size, bool write)
 {
+	/*read는 커널이 유저 버퍼에 데이터를 쓴다->버퍼가 쓰기 가능한 페이지여야 한다.
+	write는 커널이 유저 버퍼에서 데이터를 읽는다->버퍼의 writable 검사 필요하지 않음.
+	여기서 인자 write가 1이면 sys_write에서 넘어온 것->검사 필요하지 않음.
+*/
 	uint8_t *start = (uint8_t *)pg_round_down(buffer);
 	uint8_t *end = (uint8_t *)pg_round_down(buffer + size - 1);
 	struct thread *cur = thread_current();
@@ -157,11 +161,21 @@ void check_buffer(const void *buffer, unsigned size)
 		if (!is_user_vaddr(addr))
 			sys_exit(-1);
 
-		// pml4에 이미 매핑돼 있는지 확인하고, 없으면 vm_claim_page()로 요구
-		if (pml4_get_page(cur->pml4, addr) == NULL)
+		struct page *page = pml4_get_page(cur->pml4, addr);
+		
+		if (page == NULL)
 		{
-			if (!vm_claim_page(addr))
+			if (!vm_try_handle_fault(NULL, addr, true, write, true))
 				sys_exit(-1);
+		}else{
+			if(!write){
+				//이미 매핑되어 있다면	
+				uint64_t *pte = pml4e_walk(cur->pml4, (uint64_t)addr, false);
+				if (pte == NULL || !is_writable(pte))
+				{
+					sys_exit(-1); // 쓰기 권한이 없으면 종료
+				}
+			}
 		}
 	}
 }
@@ -248,7 +262,8 @@ void sys_halt()
 
 static int sys_write(int fd, const void *buffer, unsigned size)
 {
-	check_buffer(buffer, size);
+	int i=0;
+	check_buffer(buffer, size, true);
 	// fd가 유효한지 먼저 검사
 	if (fd < 0 || fd >= MAX_FD)
 		return -1;
@@ -322,7 +337,7 @@ int sys_read(int fd, void *buffer, unsigned size)
 	if (size == 0)
 		return 0;
 
-	check_buffer(buffer, size); // 페이지 단위 검사
+	check_buffer(buffer, size, false); // 페이지 단위 검사
 
 	struct thread *cur = thread_current();
 
