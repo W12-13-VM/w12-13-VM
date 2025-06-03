@@ -795,19 +795,6 @@ lazy_load_segment(struct page *page, void *aux)
 	free(aux);
 	//성공
 	return success;
-	// struct file_info *lazy_info = (struct file_info *)aux;
-	// struct file *read_file = lazy_info->file;
-	
-	// off_t my_read_byte = file_read_at(read_file, page->frame->kva, lazy_info->read_bytes, lazy_info->ofs);
-
-	// if (my_read_byte != (off_t)lazy_info->read_bytes)
-	// {
-	// 	return false;
-	// }
-	// memset(page->frame->kva + lazy_info->read_bytes, 0, lazy_info->zero_bytes);
-
-	// free(lazy_info);
-	// return true;
  
 }
 
@@ -846,7 +833,7 @@ load_segment(struct file *file, off_t ofs, uint8_t *upage,
 
 		aux->file=file_reopen(file);;
 		aux->ofs=ofs;
-		aux->upage;
+		aux->upage=upage;
 		aux->read_bytes=read_bytes;
 		aux->zero_bytes=zero_bytes;
 		aux->writable=writable;
