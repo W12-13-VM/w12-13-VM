@@ -350,15 +350,18 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
 
       /* 1) type이 uninit이면 */
       if (type == VM_UNINIT)
-      { // uninit page 생성 & 초기화
+      { // 부모의 예약된 타입을 가져옴 
+		 enum vm_type reserved_type = src_page->uninit.type;
          vm_initializer *init = src_page->uninit.init;
          void *aux = duplicate_aux(src_page);
-         vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux);
+		 
+         if(!vm_alloc_page_with_initializer(reserved_type, upage, writable, init, aux))
+		 	return false;
          continue;
       }
 
       /* 2) type이 uninit이 아니면 */
-      if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, NULL)) // uninit page 생성 & 초기화
+      if (!vm_alloc_page(type, upage, writable)) // uninit page 생성 & 초기화
          // init(lazy_load_segment)는 page_fault가 발생할때 호출됨
          // 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
          return false;
@@ -373,6 +376,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
    }
    return true;
 }
+
 void page_desturctor(struct hash_elem *e, void * aux){
 	struct page *p = hash_entry(e, struct page, hash_elem);
 	vm_dealloc_page(p);
