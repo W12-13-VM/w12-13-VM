@@ -32,6 +32,8 @@ unsigned sys_tell(int fd);
 void check_buffer(const void *buffer, unsigned size, bool write);
 int sys_wait(tid_t pid);
 int sys_dup2(int oldfd, int newfd);
+void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
+void sys_munmap(void *addr);
 
 struct lock filesys_lock;
 /* 시스템 콜.
@@ -127,11 +129,12 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	case SYS_DUP2:
 		f->R.rax = sys_dup2(arg1, arg2);
 		break;
-	// case SYS_MMAP:
-	// 	f->R.rax = sys_mmap(arg1, arg2, arg3, arg4, arg5);
-	// 	break;
-	// case SYS_MUNMAP:
-	// 	break;
+	case SYS_MMAP:
+		f->R.rax = sys_mmap(arg1, arg2, arg3, arg4, arg5);
+		break;
+	case SYS_MUNMAP:
+		sys_munmap(arg1);
+		break;
 	default:
 		thread_exit();
 		break;
@@ -142,10 +145,11 @@ void syscall_handler(struct intr_frame *f UNUSED)
 void check_address(const uint64_t *addr)
 {
 	struct thread *cur = thread_current();
-
+	
 	if (addr == "" || !(is_user_vaddr(addr)) || pml4_get_page(cur->pml4, addr) == NULL)
 	{
-		sys_exit(-1);
+		if(!spt_find_page(&cur->spt, addr))
+			sys_exit(-1);
 	}
 }
 
@@ -190,42 +194,78 @@ void sys_munmap(void *addr)
 	 * 2. 물리 페이지에서도 제거
 	 * 3. 매핑 카운트나 page 구조체 내의 카운트를 사용해서 제거
 	 */
+
+	struct thread *thread = thread_current(); 
+	struct page * page=spt_find_page(thread, addr);
+
+	struct file_info *aux = page->file.aux;
+	size_t read_bytes=aux->read_bytes;
+	size_t zero_bytes=aux->zero_bytes;
+	off_t ofs=aux->ofs;
+
+	size_t remain_length = read_bytes;
+	void *start_addr = addr;
+    void *end_addr = addr + read_bytes;
+
+	for (void *cur_addr = start_addr; cur_addr < end_addr; cur_addr += PGSIZE) {
+        struct page *page = spt_find_page(&thread->spt, cur_addr);
+        if (page == NULL)
+            continue;
+        // 페이지 제거
+        spt_remove_page(&thread->spt, page);
+        pml4_clear_page(thread->pml4, pg_round_down(cur_addr));
+        vm_dealloc_page(page);
+    }
+
+	
 }
 
-// void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
-// {
-// 	int filesize = sys_filesize(fd);
-// 	if (filesize == 0 || length == 0 || fd == 0 || fd == 1)
-// 		return MAP_FAILED;
+/*
+매핑 성공시 매핑된 가상 주소 addr을 반환, 실패시 NULL 반환 
+*/
+void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
+{
+	check_address(addr);
+	// 1. fd로 열린 파일의 길이가 0바이트면 실패 && length 가 0 이면 실패
+	//2. 콘솔 입출력은 매핑 대상이 아님
+	int filesize = sys_filesize(fd); 
+	if (filesize == 0 || length == 0 || fd == 0 || fd == 1)
+		return MAP_FAILED;
 
-// 	if ((uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
-// 		return MAP_FAILED;
 
-// 	void *start_page = addr;
-// 	void *end_page = addr + length;
+	//3. addr이 페이지 정렬되지 않았으면 실패 && addr이 0이면 실패 
+	if ((uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
+		return MAP_FAILED;
 
-// 	for (; end_page > start_page; start_page + PGSIZE)
-// 	{
-// 		if (spt_find_page(thread_current()->spt, start_page) != NULL)
-// 			return MAP_FAILED;
-// 	}
+	void *start_page = addr;
+	void *end_page = addr + length;
 
-// 	size_t remain_length = length;
-// 	void *cur_addr = addr;
-// 	off_t cur_offset = offset;
+	//4. 매핑하려는 페이지 영역이 이미 다른 영역과 겹친다면 실패 
+	for (void *page = addr; page<end_page; page+=PGSIZE)
+	{
+		if (spt_find_page(&thread_current()->spt, start_page) != NULL)
+			return MAP_FAILED;
+	}
 
-// 	while (remain_length > 0)
-// 	{
-// 		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
-// 		do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset);
-// 		remain_length -= PGSIZE;
-// 		cur_addr += PGSIZE;
-// 		cur_offset += PGSIZE;
-// 	}
+	/* 파일 디스크립터 fd 로 열린 파일의 offset 바이트부터 length 바이트만큼 
+	프로세스의 가상 주소 공간의 addr 부터 매핑한다. 매핑은 페이지 단위로 이루어짐
+	*/
+	size_t remain_length = length;
+	void *cur_addr = addr;
+	off_t cur_offset = offset;
 
-// 	return addr;
-// }
+	while (remain_length > 0)
+	{
+		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
+		if(do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
+			return MAP_FAILED;
+		remain_length -= PGSIZE;
+		cur_addr += PGSIZE;
+		cur_offset += PGSIZE;
+	}
 
+	return addr;
+}
 int sys_exec(char *file_name)
 {
 	check_address(file_name);
