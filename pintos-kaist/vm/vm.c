@@ -4,7 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/mmu.h"
-
+#define STACK_GROW_RANGE 4192
 struct frame_table *frame_table;
 
 /* 각 서브시스템의 초기화 코드를 호출하여 가상 메모리 서브시스템을 초기화합니다. */
@@ -215,20 +215,20 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
     struct supplemental_page_table *spt = &thread_current()->spt;
 	// addr = pg_round_down(addr);
     struct page *page = spt_find_page(spt, addr);
-	uintptr_t rsp = f? f->rsp : thread_current()->user_rsp; // 유저 스택의 rsp 가져오기
+	uintptr_t rsp = thread_current()->user_rsp; // 유저 스택의 rsp 가져오기
 
 	if(page){
 		return vm_do_claim_page(page);
 	}
 
     if (page == NULL) {
-        if (addr >= rsp - 8 && addr >= USER_STACK - (1 << 20) && addr < USER_STACK) {
+        if (addr >= rsp - 4096 && addr >= USER_STACK - (1 << 20) && addr < USER_STACK) {
             vm_stack_growth(pg_round_down(addr));
 			return true;
 		}
         
         return false;
-    }
+	}
 }
 
 /* Free the page.
