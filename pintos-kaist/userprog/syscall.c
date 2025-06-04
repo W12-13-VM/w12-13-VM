@@ -25,7 +25,7 @@ bool sys_create(const char *file, unsigned initial_size);
 bool sys_remove(const char *file);
 int sys_open(const char *file);
 int sys_filesize(int fd);
-int sys_read(int fd, void *buffer, unsigned size);
+int sys_read(int fd, void *buffer, unsigned srize);
 int find_unused_fd(const char *file);
 void sys_seek(int fd, unsigned position);
 unsigned sys_tell(int fd);
@@ -351,9 +351,8 @@ bool sys_create(const char *file, unsigned initial_size)
 
 bool sys_remove(const char *file)
 {
-	check_address(file);
-	lock_acquire(&filesys_lock);
-	bool succ = filesys_remove(file);
+	lock_acquire(&filesys_lock);	
+	bool succ= filesys_remove(file);
 	lock_release(&filesys_lock);
 	return succ;
 }

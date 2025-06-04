@@ -11,4 +11,7 @@ void process_exit (void);
 void process_activate (struct thread *next);
 struct lock filesys_lock;
 
+struct lock filesys_lock;
+
+
 #endif /* userprog/process.h */
