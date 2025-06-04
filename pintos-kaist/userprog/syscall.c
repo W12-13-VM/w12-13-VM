@@ -69,6 +69,7 @@ void syscall_init(void)
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED)
 {
+
 	uint64_t syscall_num = f->R.rax;
 	uint64_t arg1 = f->R.rdi;
 	uint64_t arg2 = f->R.rsi;
@@ -76,6 +77,8 @@ void syscall_handler(struct intr_frame *f UNUSED)
 	uint64_t arg4 = f->R.r10;
 	uint64_t arg5 = f->R.r8;
 	uint64_t arg6 = f->R.r9;
+	if (f->cs == SEL_UCSEG)
+        thread_current()->user_rsp = f->rsp;
 	// syscall_handler 내부
 	switch (syscall_num)
 	{
