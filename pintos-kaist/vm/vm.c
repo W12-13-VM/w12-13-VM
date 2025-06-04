@@ -222,7 +222,7 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
 	}
 
     if (page == NULL) {
-        if (addr >= rsp - 4096 && addr >= USER_STACK - (1 << 20) && addr < USER_STACK) {
+        if (addr > rsp - PGSIZE && addr >= USER_STACK - (1 << 20) && addr < USER_STACK) {
             vm_stack_growth(pg_round_down(addr));
 			return true;
 		}
