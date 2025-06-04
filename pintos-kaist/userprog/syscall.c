@@ -25,7 +25,7 @@ bool sys_create(const char *file, unsigned initial_size);
 bool sys_remove(const char *file);
 int sys_open(const char *file);
 int sys_filesize(int fd);
-int sys_read(int fd, void *buffer, unsigned size);
+int sys_read(int fd, void *buffer, unsigned srize);
 int find_unused_fd(const char *file);
 void sys_seek(int fd, unsigned position);
 unsigned sys_tell(int fd);
@@ -35,7 +35,6 @@ int sys_dup2(int oldfd, int newfd);
 void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset);
 void sys_munmap(void *addr);
 
-struct lock filesys_lock;
 /* 시스템 콜.
  *
  * 이전에는 시스템 콜 서비스가 인터럽트 핸들러(예: 리눅스의 int 0x80)에 의해 처리되었습니다.
@@ -339,17 +338,23 @@ void sys_exit(int status)
 
 bool sys_create(const char *file, unsigned initial_size)
 {
+	lock_acquire(&filesys_lock);
 	check_address(file);
 	if (file == NULL || strcmp(file, "") == 0)
 	{
 		sys_exit(-1);
 	}
-	return filesys_create(file, initial_size);
+	bool succ = filesys_create(file, initial_size);
+	lock_release(&filesys_lock);
+	return succ;
 }
 
 bool sys_remove(const char *file)
 {
-	return filesys_remove(file);
+	lock_acquire(&filesys_lock);	
+	bool succ= filesys_remove(file);
+	lock_release(&filesys_lock);
+	return succ;
 }
 
 int sys_filesize(int fd)
@@ -443,6 +448,7 @@ int sys_open(const char *file)
 	struct file *file_obj = filesys_open(file);
 	if (file_obj == NULL)
 	{
+		lock_release(&filesys_lock);
 		return -1;
 	}
 

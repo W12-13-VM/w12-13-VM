@@ -268,7 +268,11 @@ int process_exec(void *f_name)
 	palloc_free_page(file_name);
 	if (!success)
 		return -1;
+		
+	lock_acquire(&filesys_lock);
 	thread_current()->running_file = filesys_open(cp_file_name);
+	lock_release(&filesys_lock);
+
 	file_deny_write(thread_current()->running_file);
 
 	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
@@ -494,7 +498,10 @@ load(const char *file_name, struct intr_frame *if_)
 	process_activate(thread_current());
 
 	/* 실행 파일을 엽니다. */
+	lock_acquire(&filesys_lock);
 	file = filesys_open(file_name);
+	lock_release(&filesys_lock);
+
 	if (file == NULL)
 	{
 		printf("load: %s: open failed\n", file_name);

@@ -87,9 +87,17 @@ file_backed_destroy(struct page *page)
 	 */
 	if(pml4_is_dirty(thread_current()->pml4, page->va)){
 		
-		// lock_acquire(&filesys_lock);
+		lock_acquire(&filesys_lock);
 		file_seek(file_page,offset);
 		file_write(file_page, page->frame->kva, offset);
+		pml4_set_dirty(thread_current()->pml4, page->va, 0);
+	}
+	if(pml4_is_dirty(thread_current()->pml4, page->va)){
+		
+		lock_acquire(&filesys_lock);
+		file_seek(file_page,offset);
+		file_write(file_page, page->frame->kva, offset);
+		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
 	file_close(file_page);
