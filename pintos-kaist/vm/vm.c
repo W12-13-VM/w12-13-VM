@@ -71,9 +71,6 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		case VM_ANON:
 			page_initializer = anon_initializer;
 			break;
-		case VM_MMAP:
-			/* 매핑 카운트를 추가해두자
-			   mmap_list로 mmap 페이지를 관리할거면 필요 x */
 		case VM_FILE:
 			page_initializer = file_backed_initializer;
 			break;
@@ -190,7 +187,6 @@ vm_stack_growth(void *addr)
 {
 	/* 스택 최하단에 익명 페이지를 추가하여 사용
 	 * addr은 PGSIZE로 내림(정렬)하여 사용	 */
-	// uint64_t *address = (uint64_t *)pg_round_down(addr);
 	vm_alloc_page(VM_ANON, addr, true); // 스택 최하단에 익명 페이지 추가
 }
 

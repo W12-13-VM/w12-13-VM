@@ -4,6 +4,7 @@
 #include "threads/vaddr.h"
 #include "lib/kernel/bitmap.h"
 #include "devices/disk.h"
+#include "threads/mmu.h"
 
 /* DO NOT MODIFY BELOW LINE */
 static struct disk *swap_disk;
