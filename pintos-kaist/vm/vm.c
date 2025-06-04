@@ -218,6 +218,10 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
 	struct supplemental_page_table *spt  = &thread_current()->spt;
 	struct page *page = spt_find_page(spt, addr);
 
+	if(page){
+		return vm_do_claim_page(page);
+	}
+
 	if(page == NULL){
 		if (addr >= f->rsp - 8 && addr >= USER_STACK - (1 << 20) )  {
 			vm_stack_growth(pg_round_down(addr));
@@ -233,7 +237,6 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
 	 /*
 	 not_present가 true면 vm_claim_page로 할당받아야 함?*/
 
-	return vm_do_claim_page(page);
 }
 
 /* Free the page.
