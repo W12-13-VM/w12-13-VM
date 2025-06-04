@@ -217,6 +217,7 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
     struct page *page = spt_find_page(spt, addr);
 	uintptr_t rsp = thread_current()->user_rsp; // 유저 스택의 rsp 가져오기
 
+<<<<<<< HEAD
     if (page == NULL) {
         if (rsp && addr < rsp && addr >= rsp - PGSIZE && addr >= USER_STACK - (1 << 20)) {
             vm_stack_growth(addr);
@@ -226,6 +227,27 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
         return false;
     }
     return vm_do_claim_page(page);
+=======
+	if(page){
+		return vm_do_claim_page(page);
+	}
+
+	if(page == NULL){
+		if (addr >= f->rsp - 8 && addr >= USER_STACK - (1 << 20) )  {
+			vm_stack_growth(pg_round_down(addr));
+			return true;
+		}
+		return false;
+	}
+	/* 스택확장 폴트에서 valid를 확인하려면 유저 스택 시작 주소 + 1MB를 넘는지 확인
+	 * addr = thread 내의 user_rsp
+	 * addr은 user_rsp보다 크면 안됨
+	 * stack_growth 호출해야함 */
+
+	 /*
+	 not_present가 true면 vm_claim_page로 할당받아야 함?*/
+
+>>>>>>> 9d0fa47437cf3a639e8e77a6483b3fde26c92291
 }
 
 /* Free the page.

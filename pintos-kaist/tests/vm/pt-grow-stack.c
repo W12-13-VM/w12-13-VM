@@ -1,5 +1,5 @@
-/* Demonstrate that the stack can grow.
-   This must succeed. */
+/* 스택이 확장될 수 있음을 보여줍니다.
+  이는 성공해야 합니다. */
 
 #include <string.h>
 #include "tests/arc4.h"
