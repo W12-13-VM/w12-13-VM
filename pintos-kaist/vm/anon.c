@@ -50,7 +50,6 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 	return true;
 }
 
-
 /* 스왑 디스크에서 내용을 읽어와 페이지를 스왑인합니다. */
 static bool
 anon_swap_in(struct page *page, void *kva)

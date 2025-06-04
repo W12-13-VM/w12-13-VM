@@ -599,6 +599,7 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->original_priority = priority;
 	t->pending_lock = NULL;
 	t->magic = THREAD_MAGIC;
+	t->user_rsp = NULL;
 
 	if (thread_mlfqs)
 	{

@@ -121,7 +121,6 @@ bool spt_insert_page(struct supplemental_page_table *spt,
 					 struct page *page)
 {
 	int succ = false;
-	/* TODO: Fill this function. */
 	ASSERT(page!=NULL);
 	struct hash_elem * e=hash_insert(&spt->spt_hash, &page->hash_elem);
 	if(e!=NULL) return succ; //실패했음
@@ -187,10 +186,11 @@ vm_get_frame(void)
 
 /* Growing the stack. */
 static void
-vm_stack_growth(void *addr UNUSED)
+vm_stack_growth(void *addr)
 {
 	/* 스택 최하단에 익명 페이지를 추가하여 사용
 	 * addr은 PGSIZE로 내림(정렬)하여 사용	 */
+	// uint64_t *address = (uint64_t *)pg_round_down(addr);
 	vm_alloc_page(VM_ANON, addr, true); // 스택 최하단에 익명 페이지 추가
 }
 
@@ -204,31 +204,31 @@ vm_handle_wp(struct page *page UNUSED)
 /* 인터럽트 프레임, addr=폴트를 일으킨 주소(코드일 수도있고 데이터일수도 있음),
 user=사용자 접근인지 커널 접근인지, write=true면 쓰기 허용 false면 읽기만
 not_present: true면 존재하지 않는 페이지, false면  */
-bool vm_try_handle_fault(struct intr_frame *f UNUSED, void *addr ,
-						 bool user UNUSED, bool write UNUSED, bool not_present UNUSED)
+bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
+						 bool user UNUSED, bool write UNUSED, bool not_present )
 {
 
 	// ASSERT(addr!=NULL);
-	struct supplemental_page_table *spt  = &thread_current()->spt;
-	
-	struct page *page = spt_find_page(spt, addr);
+	if (!not_present) return false;
+    if (!is_user_vaddr(addr)) return false;
 
-	/* TODO: Validate the fault */
-	/* bogus 폴트인지? 스택확장 폴트인지?
-	 * SPT 뒤져서 존재하면 bogus 폴트!!
-	 * addr이 유저 스택 시작 주소 + 1MB를 넘지 않으면 스택확장 폴트
-	 * 찐폴트면 false 리턴
-	 * 아니면 vm_do_claim_page 호출	*/
-	if(page == NULL)
-		return false;
-	/* 스택확장 폴트에서 valid를 확인하려면 유저 스택 시작 주소 + 1MB를 넘는지 확인
-	 * addr = thread 내의 user_rsp
-	 * addr은 user_rsp보다 크면 안됨
-	 * stack_growth 호출해야함 */
+    struct supplemental_page_table *spt = &thread_current()->spt;
+	// addr = pg_round_down(addr);
+    struct page *page = spt_find_page(spt, addr);
+	uintptr_t rsp = f? f->rsp : thread_current()->user_rsp; // 유저 스택의 rsp 가져오기
 
-	/* TODO: Your code goes here */
+	if(page){
+		return vm_do_claim_page(page);
+	}
 
-	return vm_do_claim_page(page);
+    if (page == NULL) {
+        if (addr >= rsp - 8 && addr >= USER_STACK - (1 << 20)) {
+            vm_stack_growth(pg_round_down(addr));
+			return true;
+		}
+        
+        return false;
+    }
 }
 
 /* Free the page.
@@ -283,7 +283,7 @@ size_t page_hash(const struct hash_elem *e, void * aux){
 }
 
 /* Initialize new supplemental page table */
-void supplemental_page_table_init(struct supplemental_page_table *spt UNUSED)
+void supplemental_page_table_init(struct supplemental_page_table *spt)
 {
 	if(!hash_init(&spt->spt_hash, page_hash, is_less, NULL))
 		return;
@@ -350,15 +350,18 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
 
       /* 1) type이 uninit이면 */
       if (type == VM_UNINIT)
-      { // uninit page 생성 & 초기화
+      { // 부모의 예약된 타입을 가져옴 
+		 enum vm_type reserved_type = src_page->uninit.type;
          vm_initializer *init = src_page->uninit.init;
          void *aux = duplicate_aux(src_page);
-         vm_alloc_page_with_initializer(VM_ANON, upage, writable, init, aux);
+		 
+         if(!vm_alloc_page_with_initializer(reserved_type, upage, writable, init, aux))
+		 	return false;
          continue;
       }
 
       /* 2) type이 uninit이 아니면 */
-      if (!vm_alloc_page_with_initializer(type, upage, writable, NULL, NULL)) // uninit page 생성 & 초기화
+      if (!vm_alloc_page(type, upage, writable)) // uninit page 생성 & 초기화
          // init(lazy_load_segment)는 page_fault가 발생할때 호출됨
          // 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
          return false;
@@ -373,6 +376,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
    }
    return true;
 }
+
 void page_desturctor(struct hash_elem *e, void * aux){
 	struct page *p = hash_entry(e, struct page, hash_elem);
 	vm_dealloc_page(p);
