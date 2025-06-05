@@ -261,6 +261,7 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	{	
 		if(do_mmap(cur_addr, length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
 			return MAP_FAILED;
+		if(remain_length<PGSIZE) break;
 		remain_length -= PGSIZE;
 		cur_addr += PGSIZE;
 		cur_offset += PGSIZE;

@@ -295,35 +295,6 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 }
 
 
-
-// /* Copy supplemental page table from src to dst */
-// bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
-// 								  struct supplemental_page_table *src UNUSED)
-// {
-// 	struct hash_iterator i;
-// 	hash_first(&i, &src->spt_hash);
-// 	while(hash_next(&i)){
-// 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-// 		void *upage = src_page->va;
-
-// 		if(src_page->operations->type == VM_UNINIT){
-// 			struct uninit_page *uninit = &src_page->uninit;
-// 			if(!vm_alloc_page_with_initializer(uninit->type, upage, src_page->writable,uninit->init,uninit->aux)){
-// 				return false;
-// 			}
-// 		} else{
-
-// 			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable,NULL, NULL) || !vm_claim_page(upage)){
-// 				return false;
-// 			}
-// 		}
-// 		struct page *dst_page = spt_find_page(dst, upage);
-// 		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
-// 	}
-// 	return true;
-// }
-
-
 static void *duplicate_aux(struct page *src_page)
 {
    
