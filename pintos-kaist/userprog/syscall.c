@@ -209,7 +209,7 @@ void sys_munmap(void *addr)
 	void *start_addr = addr;
 	void *end_addr = addr + (aux->read_bytes + aux->zero_bytes);
 
-	for (void *cur_addr = start_addr; cur_addr < end_addr; cur_addr += PGSIZE) {
+	for (void *cur_addr = start_addr; cur_addr <= end_addr; cur_addr += PGSIZE) {
         do_munmap(cur_addr);
     }
 }
