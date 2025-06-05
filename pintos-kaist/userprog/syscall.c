@@ -204,14 +204,16 @@ void sys_munmap(void *addr)
 	struct page * page=spt_find_page(&thread->spt, addr);
 
 	struct file_info *aux = (struct file_info *)page->file.aux;
-	size_t length = aux->read_bytes + aux->zero_bytes;
+	size_t file_length = aux->total_length;
 
 	void *start_addr = addr;
-	void *end_addr = addr + (aux->read_bytes + aux->zero_bytes);
+	void *cur_addr = addr;
+	void *end_addr = addr + file_length;
 
-	for (void *cur_addr = start_addr; cur_addr <= end_addr; cur_addr += PGSIZE) {
-        do_munmap(cur_addr);
+	for (cur_addr = start_addr; cur_addr < end_addr; cur_addr += PGSIZE) {
+		do_munmap(cur_addr);
     }
+
 }
 
 /*
@@ -251,10 +253,8 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	off_t cur_offset = offset;
 
 	while (remain_length > 0)
-	{
-		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
-		
-		if(do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
+	{	
+		if(do_mmap(cur_addr, length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
 			return MAP_FAILED;
 		remain_length -= PGSIZE;
 		cur_addr += PGSIZE;
