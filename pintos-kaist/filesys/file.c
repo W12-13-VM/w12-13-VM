@@ -10,6 +10,7 @@ struct file
 	off_t pos;			 /* Current position. */
 	bool deny_write;	 /* Has file_deny_write() been called? */
 	int dup_count;		 /* extra2 */
+	int mapping_cnt;
 };
 
 /* Opens a file for the given INODE, of which it takes ownership,
@@ -29,6 +30,22 @@ void decrease_dup_count(struct file *file)
 int check_dup_count(struct file *file)
 {
 	return file->dup_count;
+}
+
+
+void increase_mapping_count(struct file *file)
+{
+	file->mapping_cnt++;
+}
+
+void decrease_mapping_count(struct file *file)
+{
+	file->mapping_cnt--;
+}
+
+int check_mapping_count(struct file *file)
+{
+	return file->mapping_cnt;
 }
 
 /*

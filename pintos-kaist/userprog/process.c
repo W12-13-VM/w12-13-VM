@@ -268,7 +268,7 @@ int process_exec(void *f_name)
 	palloc_free_page(file_name);
 	if (!success)
 		return -1;
-		
+
 	lock_acquire(&filesys_lock);
 	thread_current()->running_file = filesys_open(cp_file_name);
 	lock_release(&filesys_lock);
@@ -777,7 +777,7 @@ install_page(void *upage, void *kpage, bool writable)
 /* 여기부터 코드는 project 3 이후 사용됩니다.
  * project 2만을 위해 함수를 구현하려면 위쪽 블록에서 구현하세요. */
 
-static bool
+bool
 lazy_load_segment(struct page *page, void *aux)
 {
 	/* TODO: Load the segment from the file */
@@ -794,12 +794,13 @@ lazy_load_segment(struct page *page, void *aux)
 	bool success=false;
 	//파일에서 데이터 읽기 
 	file_seek(file, ofs);
-	if(file_read(file, kva, page_read_bytes)==(int)page_read_bytes){
+	int checksize=file_read(file, kva, page_read_bytes); 
+	if(checksize==(int)page_read_bytes){
 		memset(kva+page_read_bytes, 0, page_zero_bytes);
 		success=true;
 	}
 
-	free(aux);
+	// free(aux);
 	//성공
 	return success;
  

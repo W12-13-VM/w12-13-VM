@@ -6,6 +6,7 @@
 struct page;
 enum vm_type;
 
+
 struct file_page
 {
 	/* dirty bit가 명시적으로 필요한가??
