@@ -141,12 +141,21 @@ void syscall_handler(struct intr_frame *f UNUSED)
 }
 
 // 주소값이 유저 영역(0x8048000~0xc0000000)에서 사용하는 주소값인지 확인하는 함수
+// 또는 매핑된 주소인지 확인
 void check_address(const uint64_t *addr)
 {
 	struct thread *cur = thread_current();
-	
+
 	if (addr == NULL || !is_user_vaddr(addr))
-	sys_exit(-1);
+		sys_exit(-1);
+
+	struct apge *page= pml4_get_page(cur->pml4, addr);
+	 
+	if(page ==NULL){
+		if (!vm_try_handle_fault(NULL, addr, true, write, true))
+				sys_exit(-1);
+	}
+	
 }
 
 void check_buffer(const void *buffer, unsigned size, bool write)
@@ -328,7 +337,7 @@ bool sys_create(const char *file, unsigned initial_size)
 {
 	lock_acquire(&filesys_lock);
 	check_address(file);
-	if (file == NULL || strcmp(file, "") == 0)
+	if (file == NULL )
 	{
 		sys_exit(-1);
 	}
