@@ -219,7 +219,9 @@ void sys_munmap(void *addr)
 */
 void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 {
-	check_address(addr);
+	if (addr == NULL || !is_user_vaddr(addr))
+		sys_exit(-1);
+
 	// 1. fd로 열린 파일의 길이가 0바이트면 실패 && length 가 0 이면 실패
 	//2. 콘솔 입출력은 매핑 대상이 아님
 	int filesize = sys_filesize(fd); 
