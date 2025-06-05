@@ -145,11 +145,8 @@ void check_address(const uint64_t *addr)
 {
 	struct thread *cur = thread_current();
 	
-	if (addr == "" || !(is_user_vaddr(addr)) || pml4_get_page(cur->pml4, addr) == NULL)
-	{
-		if(!spt_find_page(&cur->spt, addr))
-			sys_exit(-1);
-	}
+	if (addr == NULL || !is_user_vaddr(addr))
+	sys_exit(-1);
 }
 
 void check_buffer(const void *buffer, unsigned size, bool write)
@@ -195,28 +192,17 @@ void sys_munmap(void *addr)
 	 */
 
 	struct thread *thread = thread_current(); 
-	struct page * page=spt_find_page(thread, addr);
+	struct page * page=spt_find_page(&thread->spt, addr);
 
-	struct file_info *aux = page->file.aux;
-	size_t read_bytes=aux->read_bytes;
-	size_t zero_bytes=aux->zero_bytes;
-	off_t ofs=aux->ofs;
+	struct file_info *aux = (struct file_info *)page->file.aux;
+	size_t length = aux->read_bytes + aux->zero_bytes;
 
-	size_t remain_length = read_bytes;
 	void *start_addr = addr;
-    void *end_addr = addr + read_bytes;
+	void *end_addr = addr + (aux->read_bytes + aux->zero_bytes);
 
 	for (void *cur_addr = start_addr; cur_addr < end_addr; cur_addr += PGSIZE) {
-        struct page *page = spt_find_page(&thread->spt, cur_addr);
-        if (page == NULL)
-            continue;
-        // 페이지 제거
-        spt_remove_page(&thread->spt, page);
-        pml4_clear_page(thread->pml4, pg_round_down(cur_addr));
-        vm_dealloc_page(page);
+        do_munmap(cur_addr);
     }
-
-	
 }
 
 /*
@@ -242,7 +228,7 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	//4. 매핑하려는 페이지 영역이 이미 다른 영역과 겹친다면 실패 
 	for (void *page = addr; page<end_page; page+=PGSIZE)
 	{
-		if (spt_find_page(&thread_current()->spt, start_page) != NULL)
+		if (spt_find_page(&thread_current()->spt, page) != NULL)
 			return MAP_FAILED;
 	}
 
@@ -256,12 +242,14 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	while (remain_length > 0)
 	{
 		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
+		
 		if(do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
 			return MAP_FAILED;
 		remain_length -= PGSIZE;
 		cur_addr += PGSIZE;
 		cur_offset += PGSIZE;
 	}
+
 
 	return addr;
 }

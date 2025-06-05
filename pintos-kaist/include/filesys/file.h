@@ -32,4 +32,9 @@ void increase_dup_count(struct file *);
 void decrease_dup_count(struct file *);
 int check_dup_count(struct file *);
 
+
+void increase_mapping_count(struct file *);
+void decrease_mapping_count(struct file *);
+int check_mapping_count(struct file *);
+
 #endif /* filesys/file.h */

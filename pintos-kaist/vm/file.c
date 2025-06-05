@@ -37,6 +37,7 @@ bool file_backed_initializer(struct page *page, enum vm_type type, void *kva)
 	page->operations = &file_ops;
 
 	struct file_page *file_page = &page->file;
+	file_page->aux = page->uninit.aux;
 	/** TODO: file 백업 정보를 초기화
 	 * file_page에 어떤 정보가 있는지에 따라 다름
 	 */
@@ -79,6 +80,7 @@ file_backed_destroy(struct page *page)
 	struct file_info *aux=file_page->aux;
 	uint32_t read_bytes = aux->read_bytes;
 	uint32_t zero_bytes = aux->zero_bytes;
+	struct file * file = aux->file;
 	off_t offset=aux->ofs;
 	/** TODO: dirty_bit 확인 후 write_back
 	 * pml4_is_dirty를 사용해서 dirty bit 확인
@@ -88,19 +90,16 @@ file_backed_destroy(struct page *page)
 	if(pml4_is_dirty(thread_current()->pml4, page->va)){
 		
 		lock_acquire(&filesys_lock);
-		file_seek(file_page,offset);
-		file_write(file_page, page->frame->kva, offset);
-		pml4_set_dirty(thread_current()->pml4, page->va, 0);
-	}
-	if(pml4_is_dirty(thread_current()->pml4, page->va)){
-		
-		lock_acquire(&filesys_lock);
-		file_seek(file_page,offset);
-		file_write(file_page, page->frame->kva, offset);
+		file_seek(file,offset);
+		file_write(file, page->frame->kva, offset);
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
-	file_close(file_page);
+	decrease_mapping_count(file);
+
+	if(check_mapping_count(file)==0){
+		file_close(file);
+	}
 	free(aux);
 }
 
@@ -109,20 +108,48 @@ file_backed_destroy(struct page *page)
 파일의 길이가 PGSIZE의 배수가 아니면 마지막 페이지는 일부만 유효하고,
 나머지 바이트는 0으로 초기화.
 */
+
+
+static bool lazy_load_file(struct page *page, void *aux)
+{
+    struct file_info *fi = aux;
+    struct file *file = fi->file;
+    off_t ofs = fi->ofs;
+    uint8_t *kva = page->frame->kva;
+
+    // 파일의 남은 크기 계산 (여기서 file_length(file)은 file의 전체크기임.)
+    size_t file_remaining = file_length(file) - ofs;
+    size_t page_read_bytes = fi->read_bytes < PGSIZE ? fi->read_bytes : PGSIZE;
+    page_read_bytes = page_read_bytes < file_remaining ? page_read_bytes : file_remaining;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    file_seek(file, ofs);
+    int bytes_read = file_read(file, kva, page_read_bytes);
+    if (bytes_read == (int)page_read_bytes) {
+        memset(kva + page_read_bytes, 0, page_zero_bytes);
+        return true;
+    } else if (bytes_read >= 0) {
+        // 파일의 끝에 도달한 경우: 읽은 만큼만 0으로 채움
+        memset(kva + bytes_read, 0, page_zero_bytes + (page_read_bytes - bytes_read));
+        return true;
+    }
+    return false;
+}
+
 void *
 do_mmap(void *addr, size_t length, int writable,
 		struct file *file, off_t offset)
 {
 	// aux에 넣어줄 정보
-	size_t zero_byte = PGSIZE - length;
 	struct file_info *aux = malloc(sizeof(struct file_info));
 	ASSERT(aux!=NULL);
 	
+	increase_mapping_count(file);
 	aux->file=file_reopen(file);
 	aux->ofs=offset;
 	aux->upage=addr;
 	aux->read_bytes=length;
-	aux->zero_bytes=zero_byte;
+	aux->zero_bytes=PGSIZE-length;
 	aux->writable=writable;
 
 
@@ -132,34 +159,31 @@ do_mmap(void *addr, size_t length, int writable,
 	return addr;
 }
 
-static bool 
-lazy_load_file(struct page *page, void *aux){
-
-	struct file_info *fi=aux;
-	struct file *file=fi->file;
-	off_t ofs = fi->ofs;
-	uint8_t *kva = page->frame->kva;
-	size_t page_read_bytes =  fi->read_bytes - (page->va - fi->upage);
-	size_t page_zero_bytes = PGSIZE - page_read_bytes;
-
-	bool success=false;
-	//파일에서 데이터 읽기 
-	file_seek(file, ofs);
-	int test=file_read(file, kva, page_read_bytes);
-	if(test==(int)page_read_bytes){
-		memset(kva+page_read_bytes, 0, page_zero_bytes);
-		success=true;
-	}
-
-	free(aux);
-	//성공
-	return success;
-}
 
 /* Do the munmap */
 /* 언매핑시 0으로 채워진 부분은 파일에 반영하지 않아야 함.*/
 void do_munmap(void *addr)
 {
+	struct thread *thread = thread_current(); 
+	struct page *page = spt_find_page(&thread->spt, addr);
+	ASSERT(page != NULL);
+		
+	//파일 mmaping_cnt
+	struct file_info * aux = page->file.aux;
+	struct file *file = aux->file;
 
+	if (pml4_is_dirty(thread_current()->pml4, addr)) {
+        off_t offset = aux->ofs;
+        size_t page_read_bytes = aux->read_bytes < PGSIZE ? aux->read_bytes : PGSIZE;
+        file_seek(file, offset);
+        file_write(file, page->frame->kva, page_read_bytes);
+        pml4_set_dirty(thread_current()->pml4, addr, 0);
+    }
+
+	// 페이지 제거
+	spt_remove_page(&thread->spt, page);
+	pml4_clear_page(thread->pml4, pg_round_down(addr));
+
+	
 	
 }
