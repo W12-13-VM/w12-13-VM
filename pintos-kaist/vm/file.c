@@ -160,6 +160,40 @@ do_mmap(void *addr, size_t length, int writable,
 }
 
 
+
+static void
+munmap_cleaner(struct page *page)
+{
+	struct file_info * aux;
+	if(page->operations->type==VM_FILE){
+		aux = page->file.aux;
+	}else{
+	    aux= (struct file_info *)page->uninit.aux;
+	}
+
+	uint32_t read_bytes=aux->read_bytes;
+	uint32_t zero_bytes=aux->zero_bytes;
+	struct file* file = aux->file;
+	off_t offset=aux->ofs;
+
+	
+	if(pml4_is_dirty(thread_current()->pml4, page->va)){
+		
+		lock_acquire(&filesys_lock);
+		file_seek(file,offset);
+		file_write(file, page->frame->kva, offset);
+		lock_release(&filesys_lock);
+		pml4_set_dirty(thread_current()->pml4, page->va, 0);
+	}
+	decrease_mapping_count(file);
+
+	if(check_mapping_count(file)==0){
+		file_close(file);
+	}
+	free(aux);
+}
+
+
 /* Do the munmap */
 /* 언매핑시 0으로 채워진 부분은 파일에 반영하지 않아야 함.*/
 void do_munmap(void *addr)
@@ -181,9 +215,9 @@ void do_munmap(void *addr)
     }
 
 	// 페이지 제거
-	spt_remove_page(&thread->spt, page);
-	pml4_clear_page(thread->pml4, pg_round_down(addr));
+	hash_delete(&thread->spt.spt_hash, &page->hash_elem);
+	munmap_cleaner(page);
+	free(page);
+	// pml4_clear_page(thread->pml4, pg_round_down(addr));
 
-	
-	
 }
