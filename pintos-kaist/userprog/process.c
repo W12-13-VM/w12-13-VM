@@ -801,7 +801,7 @@ lazy_load_segment(struct page *page, void *aux)
 		success=true;
 	}
 
-	free(aux);
+	// free(aux);
 	//성공
 	return success;
  

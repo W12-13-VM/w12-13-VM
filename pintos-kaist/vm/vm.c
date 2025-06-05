@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "threads/mmu.h"
+#include "userprog/process.h"
 #define STACK_GROW_RANGE 4192
 struct frame_table *frame_table;
 
@@ -336,7 +337,31 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
          continue;
       }
 
-      /* 2) type이 uninit이 아니면 */
+      /* 2) type이 file-backed이면 */
+	  if (type == VM_FILE)
+	  {
+		  struct file_page *src_info = &src_page->file;
+		  struct file_info *src_aux = src_info->aux;
+	  
+		  struct file_info *aux = malloc(sizeof(struct file_info));
+		  aux->file = file_reopen(src_aux->file); // 여기서 파일 핸들 복제
+		  aux->ofs = src_aux->ofs;
+		  aux->upage = src_aux->upage;
+		  aux->read_bytes = src_aux->read_bytes;
+		  aux->zero_bytes = src_aux->zero_bytes;
+		  aux->writable = src_aux->writable;
+		  aux->total_length = src_aux->total_length;
+	  
+		  if (!vm_alloc_page_with_initializer(type, upage, writable, lazy_load_segment, aux))
+			  return false;
+	  
+		  if (!vm_claim_page(upage))
+			  return false;
+	  
+		  continue;
+	  }
+
+
       if (!vm_alloc_page(type, upage, writable)) // uninit page 생성 & 초기화
          // init(lazy_load_segment)는 page_fault가 발생할때 호출됨
          // 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
