@@ -65,6 +65,7 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		 * TODO: uninit_new 호출 후에는 필요한 필드를 수정해야 합니다. */
 		bool (*page_initializer)(struct page *, enum vm_type, void *kva);
 		struct page *page = malloc(sizeof(struct page));
+		ASSERT(page!=NULL);
 
 		switch (VM_TYPE(type))
 		{
@@ -83,7 +84,15 @@ bool vm_alloc_page_with_initializer(enum vm_type type, void *upage, bool writabl
 		uninit_new(page, upage, init, type, aux, page_initializer);
 		page->writable=writable;
 		/* TODO: 생성한 페이지를 spt에 삽입하세요. */
-		return spt_insert_page(spt, page);
+		if (!spt_insert_page(spt, page))
+		{
+		   // 실패 시 메모리 누수 방지 위해 free
+		   free(page);
+		   // 실패 했으니까 에러로 가야겠지?
+		   goto err;
+		}
+  
+		return true;
 		
 	}
 err:
@@ -286,35 +295,6 @@ void supplemental_page_table_init(struct supplemental_page_table *spt)
 }
 
 
-
-// /* Copy supplemental page table from src to dst */
-// bool supplemental_page_table_copy(struct supplemental_page_table *dst UNUSED,
-// 								  struct supplemental_page_table *src UNUSED)
-// {
-// 	struct hash_iterator i;
-// 	hash_first(&i, &src->spt_hash);
-// 	while(hash_next(&i)){
-// 		struct page *src_page = hash_entry(hash_cur(&i), struct page, hash_elem);
-// 		void *upage = src_page->va;
-
-// 		if(src_page->operations->type == VM_UNINIT){
-// 			struct uninit_page *uninit = &src_page->uninit;
-// 			if(!vm_alloc_page_with_initializer(uninit->type, upage, src_page->writable,uninit->init,uninit->aux)){
-// 				return false;
-// 			}
-// 		} else{
-
-// 			if(!vm_alloc_page_with_initializer(src_page->operations->type, upage, src_page->writable,NULL, NULL) || !vm_claim_page(upage)){
-// 				return false;
-// 			}
-// 		}
-// 		struct page *dst_page = spt_find_page(dst, upage);
-// 		memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
-// 	}
-// 	return true;
-// }
-
-
 static void *duplicate_aux(struct page *src_page)
 {
    
@@ -374,8 +354,10 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
 }
 
 void page_desturctor(struct hash_elem *e, void * aux){
-	struct page *p = hash_entry(e, struct page, hash_elem);
-	vm_dealloc_page(p);
+	struct page *page = hash_entry(e, struct page, hash_elem);
+    if (page->operations->destroy != NULL) {
+        vm_dealloc_page(page);
+    }
 }
 
 

@@ -370,9 +370,9 @@ void process_exit(void)
 		file_close(curr->running_file);
 	}
 
+	process_cleanup();
 	sema_up(&curr->wait_sema);
 	sema_down(&curr->free_sema);
-	process_cleanup();
 }
 
 /* 현재 프로세스의 자원을 해제합니다. */
@@ -800,7 +800,7 @@ lazy_load_segment(struct page *page, void *aux)
 		success=true;
 	}
 
-	// free(aux);
+	free(aux);
 	//성공
 	return success;
  

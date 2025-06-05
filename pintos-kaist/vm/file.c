@@ -82,24 +82,19 @@ file_backed_destroy(struct page *page)
 	uint32_t zero_bytes = aux->zero_bytes;
 	struct file * file = aux->file;
 	off_t offset=aux->ofs;
-	/** TODO: dirty_bit 확인 후 write_back
-	 * pml4_is_dirty를 사용해서 dirty bit 확인
-	 * write back을 할 때는 aux에 저장된 파일 정보를 사용
-	 * file_write를 사용하면 될 것 같아요
-	 */
+
 	if(pml4_is_dirty(thread_current()->pml4, page->va)){
 		
 		lock_acquire(&filesys_lock);
-		file_seek(file,offset);
-		file_write(file, page->frame->kva, offset);
+		file_write_at(file, page->frame->kva, read_bytes, offset);
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
-	decrease_mapping_count(file);
-
-	if(check_mapping_count(file)==0){
-		file_close(file);
-	}
+	// decrease_mapping_count(file);
+//aux에 end 필드를 추가하던지... 어쨌든 이건 나중에 
+	// if(check_mapping_count(file)==0){
+	// 	file_close(file);
+	// }
 	free(aux);
 }
 
@@ -143,20 +138,51 @@ do_mmap(void *addr, size_t length, int writable,
 	// aux에 넣어줄 정보
 	struct file_info *aux = malloc(sizeof(struct file_info));
 	ASSERT(aux!=NULL);
+
+	size_t allocate_length = length > PGSIZE ? PGSIZE : length;
 	
 	increase_mapping_count(file);
 	aux->file=file_reopen(file);
 	aux->ofs=offset;
 	aux->upage=addr;
-	aux->read_bytes=length;
-	aux->zero_bytes=PGSIZE-length;
+	aux->read_bytes=allocate_length;
+	aux->zero_bytes=PGSIZE-allocate_length;
 	aux->writable=writable;
+	aux->total_length=length;
 
 
 	// TODO: 지연 로딩 함수 포인터 집어넣기
 	if(!vm_alloc_page_with_initializer(VM_FILE, addr, writable, lazy_load_file, aux)) //<<어떻게 lazy_load_segemnt를 집어넣지?
 		return NULL;
 	return addr;
+}
+
+
+
+static void
+munmap_cleaner(struct page *page)
+{
+	struct file_info * aux;
+	if(page->operations->type==VM_FILE){
+		aux = page->file.aux;
+	}else{
+	    aux= (struct file_info *)page->uninit.aux;
+	}
+
+	uint32_t read_bytes=aux->read_bytes;
+	uint32_t zero_bytes=aux->zero_bytes;
+	struct file* file = aux->file;
+	off_t offset=aux->ofs;
+
+	
+	if(pml4_is_dirty(thread_current()->pml4, page->va)){
+		
+		lock_acquire(&filesys_lock);
+		file_write_at(file, page->frame->kva, read_bytes, offset);
+		lock_release(&filesys_lock);
+		pml4_set_dirty(thread_current()->pml4, page->va, 0);
+	}
+	free(aux);
 }
 
 
@@ -168,22 +194,10 @@ void do_munmap(void *addr)
 	struct page *page = spt_find_page(&thread->spt, addr);
 	ASSERT(page != NULL);
 		
-	//파일 mmaping_cnt
-	struct file_info * aux = page->file.aux;
-	struct file *file = aux->file;
-
-	if (pml4_is_dirty(thread_current()->pml4, addr)) {
-        off_t offset = aux->ofs;
-        size_t page_read_bytes = aux->read_bytes < PGSIZE ? aux->read_bytes : PGSIZE;
-        file_seek(file, offset);
-        file_write(file, page->frame->kva, page_read_bytes);
-        pml4_set_dirty(thread_current()->pml4, addr, 0);
-    }
-
 	// 페이지 제거
-	spt_remove_page(&thread->spt, page);
+	hash_delete(&thread->spt.spt_hash, &page->hash_elem);
+	munmap_cleaner(page);
+	free(page);
 	pml4_clear_page(thread->pml4, pg_round_down(addr));
 
-	
-	
 }
