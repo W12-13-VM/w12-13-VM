@@ -95,11 +95,11 @@ file_backed_destroy(struct page *page)
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
-	decrease_mapping_count(file);
-
-	if(check_mapping_count(file)==0){
-		file_close(file);
-	}
+	// decrease_mapping_count(file);
+//aux에 end 필드를 추가하던지... 어쨌든 이건 나중에 
+	// if(check_mapping_count(file)==0){
+	// 	file_close(file);
+	// }
 	free(aux);
 }
 
@@ -143,14 +143,17 @@ do_mmap(void *addr, size_t length, int writable,
 	// aux에 넣어줄 정보
 	struct file_info *aux = malloc(sizeof(struct file_info));
 	ASSERT(aux!=NULL);
+
+	size_t allocate_length = length > PGSIZE ? PGSIZE : length;
 	
 	increase_mapping_count(file);
 	aux->file=file_reopen(file);
 	aux->ofs=offset;
 	aux->upage=addr;
-	aux->read_bytes=length;
-	aux->zero_bytes=PGSIZE-length;
+	aux->read_bytes=allocate_length;
+	aux->zero_bytes=PGSIZE-allocate_length;
 	aux->writable=writable;
+	aux->total_length=length;
 
 
 	// TODO: 지연 로딩 함수 포인터 집어넣기
@@ -184,11 +187,6 @@ munmap_cleaner(struct page *page)
 		file_write(file, page->frame->kva, offset);
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
-	}
-	decrease_mapping_count(file);
-
-	if(check_mapping_count(file)==0){
-		file_close(file);
 	}
 	free(aux);
 }
