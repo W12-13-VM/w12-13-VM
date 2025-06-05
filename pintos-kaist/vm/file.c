@@ -202,18 +202,6 @@ void do_munmap(void *addr)
 	struct page *page = spt_find_page(&thread->spt, addr);
 	ASSERT(page != NULL);
 		
-	//파일 mmaping_cnt
-	struct file_info * aux = page->file.aux;
-	struct file *file = aux->file;
-
-	if (pml4_is_dirty(thread_current()->pml4, addr)) {
-        off_t offset = aux->ofs;
-        size_t page_read_bytes = aux->read_bytes < PGSIZE ? aux->read_bytes : PGSIZE;
-        file_seek(file, offset);
-        file_write(file, page->frame->kva, page_read_bytes);
-        pml4_set_dirty(thread_current()->pml4, addr, 0);
-    }
-
 	// 페이지 제거
 	hash_delete(&thread->spt.spt_hash, &page->hash_elem);
 	munmap_cleaner(page);
