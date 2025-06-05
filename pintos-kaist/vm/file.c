@@ -184,7 +184,7 @@ munmap_cleaner(struct page *page)
 		
 		lock_acquire(&filesys_lock);
 		file_seek(file,offset);
-		file_write(file, page->frame->kva, offset);
+		file_write(file, page->frame->kva, read_bytes);
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}

@@ -235,6 +235,11 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	if ((uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
 		return MAP_FAILED;
 
+	// mmap-bad-fd 해결 
+	struct file *file = thread_current()->fd_table[fd];
+    if (file == NULL)
+        return MAP_FAILED;
+
 	void *start_page = addr;
 	void *end_page = addr + length;
 
