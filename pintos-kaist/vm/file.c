@@ -82,16 +82,11 @@ file_backed_destroy(struct page *page)
 	uint32_t zero_bytes = aux->zero_bytes;
 	struct file * file = aux->file;
 	off_t offset=aux->ofs;
-	/** TODO: dirty_bit 확인 후 write_back
-	 * pml4_is_dirty를 사용해서 dirty bit 확인
-	 * write back을 할 때는 aux에 저장된 파일 정보를 사용
-	 * file_write를 사용하면 될 것 같아요
-	 */
+
 	if(pml4_is_dirty(thread_current()->pml4, page->va)){
 		
 		lock_acquire(&filesys_lock);
-		file_seek(file,offset);
-		file_write(file, page->frame->kva, offset);
+		file_write_at(file, page->frame->kva, read_bytes, offset);
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
@@ -183,8 +178,7 @@ munmap_cleaner(struct page *page)
 	if(pml4_is_dirty(thread_current()->pml4, page->va)){
 		
 		lock_acquire(&filesys_lock);
-		file_seek(file,offset);
-		file_write(file, page->frame->kva, read_bytes);
+		file_write_at(file, page->frame->kva, read_bytes, offset);
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
@@ -204,6 +198,6 @@ void do_munmap(void *addr)
 	hash_delete(&thread->spt.spt_hash, &page->hash_elem);
 	munmap_cleaner(page);
 	free(page);
-	// pml4_clear_page(thread->pml4, pg_round_down(addr));
+	pml4_clear_page(thread->pml4, pg_round_down(addr));
 
 }
