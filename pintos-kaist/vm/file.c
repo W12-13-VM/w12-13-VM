@@ -30,7 +30,7 @@ void vm_file_init(void)
 	 */
 }
 
-// /* Initialize the file backed page */
+/* Initialize the file backed page */
 bool file_backed_initializer(struct page *page, enum vm_type type, void *kva)
 {
 	/* Set up the handler */
@@ -40,9 +40,6 @@ bool file_backed_initializer(struct page *page, enum vm_type type, void *kva)
 	/** TODO: file 백업 정보를 초기화
 	 * file_page에 어떤 정보가 있는지에 따라 다름
 	 */
-	struct file_info *aux = (struct file_info *)page->uninit.aux;
-	file_page->aux = aux;
-
 	return true;
 }
 
@@ -93,7 +90,6 @@ file_backed_destroy(struct page *page)
 		lock_acquire(&filesys_lock);
 		file_seek(file_page,offset);
 		file_write(file_page, page->frame->kva, offset);
-		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
 	if(pml4_is_dirty(thread_current()->pml4, page->va)){

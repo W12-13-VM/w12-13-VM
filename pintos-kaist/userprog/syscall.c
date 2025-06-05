@@ -351,6 +351,7 @@ bool sys_create(const char *file, unsigned initial_size)
 
 bool sys_remove(const char *file)
 {
+	check_address(file);
 	lock_acquire(&filesys_lock);	
 	bool succ= filesys_remove(file);
 	lock_release(&filesys_lock);

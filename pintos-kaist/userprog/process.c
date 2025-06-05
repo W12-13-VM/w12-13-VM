@@ -273,8 +273,8 @@ int process_exec(void *f_name)
 	thread_current()->running_file = filesys_open(cp_file_name);
 	lock_release(&filesys_lock);
 
-	file_deny_write(thread_current()->running_file);
-	lock_release(&filesys_lock);
+	if (thread_current()->running_file != NULL)
+		file_deny_write(thread_current()->running_file);
 
 	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true);
 	/* 프로세스를 전환합니다. */
