@@ -221,34 +221,35 @@ void sys_munmap(void *addr)
 */
 void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 {
-	if (addr == NULL || !is_user_vaddr(addr))
-		sys_exit(-1);
-
-	// 1. fd로 열린 파일의 길이가 0바이트면 실패 && length 가 0 이면 실패
-	//2. 콘솔 입출력은 매핑 대상이 아님
-	int filesize = sys_filesize(fd); 
-	if (filesize == 0 || length == 0 || fd == 0 || fd == 1)
-		return MAP_FAILED;
-
-
-	//3. addr이 페이지 정렬되지 않았으면 실패 && addr이 0이면 실패 
-	if ((uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
-		return MAP_FAILED;
-
-	// mmap-bad-fd 해결 
-	struct file *file = thread_current()->fd_table[fd];
-    if (file == NULL)
+	// addr NULL, 페이지 정렬, 0주소 금지
+    if (addr == NULL || !is_user_vaddr(addr) || (uint64_t)addr == 0 || (uint64_t)addr % PGSIZE != 0)
         return MAP_FAILED;
 
-	void *start_page = addr;
-	void *end_page = addr + length;
+    // fd가 0, 1(콘솔)이거나 음수거나 MAX_FD 넘어가면 실패
+    if (fd == 0 || fd == 1 || fd < 0 || fd >= MAX_FD)
+        return MAP_FAILED;
 
-	//4. 매핑하려는 페이지 영역이 이미 다른 영역과 겹친다면 실패 
-	for (void *page = addr; page<end_page; page+=PGSIZE)
-	{
-		if (spt_find_page(&thread_current()->spt, page) != NULL)
-			return MAP_FAILED;
-	}
+    // 파일 포인터 확인
+    struct file *file = thread_current()->fd_table[fd];
+    if (file == NULL || file->inode == NULL)
+        return MAP_FAILED;
+
+    // offset은 반드시 페이지 정렬
+    if (offset % PGSIZE != 0)
+        return MAP_FAILED;
+
+    // 파일 사이즈, length 검사 (이제 file은 NULL 아님이 보장됨)
+    int filesize = sys_filesize(fd); 
+    if (filesize == 0 || length == 0)
+        return MAP_FAILED;
+
+    // 매핑하려는 주소 영역 중복 검사
+    void *end_page = addr + length;
+    for (void *page = addr; page < end_page; page += PGSIZE)
+    {
+        if (spt_find_page(&thread_current()->spt, page) != NULL)
+            return MAP_FAILED;
+    }
 
 	/* 파일 디스크립터 fd 로 열린 파일의 offset 바이트부터 length 바이트만큼 
 	프로세스의 가상 주소 공간의 addr 부터 매핑한다. 매핑은 페이지 단위로 이루어짐
@@ -266,9 +267,9 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 		cur_offset += PGSIZE;
 	}
 
-
 	return addr;
 }
+
 int sys_exec(char *file_name)
 {
 	check_address(file_name);
