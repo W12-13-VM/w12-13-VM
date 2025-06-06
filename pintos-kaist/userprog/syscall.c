@@ -260,12 +260,13 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 
 	while (remain_length > 0)
 	{	
-		if(do_mmap(cur_addr, length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
+		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
+		if(do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
 			return MAP_FAILED;
-		if(remain_length<PGSIZE) break;
-		remain_length -= PGSIZE;
-		cur_addr += PGSIZE;
-		cur_offset += PGSIZE;
+		if(remain_length<allocate_length) break;
+		remain_length -= allocate_length;
+		cur_addr += allocate_length;
+		cur_offset += allocate_length;
 	}
 
 	return addr;
@@ -445,6 +446,9 @@ int find_unused_fd(const char *file)
 
 int sys_open(const char *file)
 {
+	//디버깅용 
+	struct therad * thread= thread_current(); 
+
 	check_address(file);
 	if (file == NULL || strcmp(file, "") == 0)
 	{

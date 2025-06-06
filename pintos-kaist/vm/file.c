@@ -95,7 +95,7 @@ file_backed_destroy(struct page *page)
 	// if(check_mapping_count(file)==0){
 	// 	file_close(file);
 	// }
-	free(aux);
+ 	free(aux);
 }
 
 /* Do the mmap */
@@ -139,16 +139,15 @@ do_mmap(void *addr, size_t length, int writable,
 	struct file_info *aux = malloc(sizeof(struct file_info));
 	ASSERT(aux!=NULL);
 
-	size_t allocate_length = length > PGSIZE ? PGSIZE : length;
-	
+
 	increase_mapping_count(file);
 	aux->file=file_reopen(file);
 	aux->ofs=offset;
 	aux->upage=addr;
-	aux->read_bytes=allocate_length;
-	aux->zero_bytes=PGSIZE-allocate_length;
+	aux->read_bytes=length; //한 페이지당 읽어와야할 바이트 수
+	aux->zero_bytes=PGSIZE-length;
 	aux->writable=writable;
-	aux->total_length=length;
+	aux->total_length=file_length(file); 
 
 
 	// TODO: 지연 로딩 함수 포인터 집어넣기

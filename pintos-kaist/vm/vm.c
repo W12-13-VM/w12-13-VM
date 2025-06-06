@@ -361,7 +361,7 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
 		  continue;
 	  }
 
-
+	  // 3. type이 anon 이면 
       if (!vm_alloc_page(type, upage, writable)) // uninit page 생성 & 초기화
          // init(lazy_load_segment)는 page_fault가 발생할때 호출됨
          // 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
