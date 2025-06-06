@@ -49,6 +49,7 @@ struct file_info
 	bool writable; //필요할까?
 
 	size_t total_length;
+	size_t mmap_length;
 
 };
 
