@@ -270,7 +270,8 @@ int process_exec(void *f_name)
 		return -1;
 
 	lock_acquire(&filesys_lock);
-	thread_current()->running_file = filesys_open(cp_file_name);
+	struct file* test =filesys_open(cp_file_name);
+	thread_current()->running_file = test;
 	lock_release(&filesys_lock);
 
 	if (thread_current()->running_file != NULL)
@@ -785,25 +786,47 @@ lazy_load_segment(struct page *page, void *aux)
 	/* TODO: 이 함수는 해당 VA(가상 주소)에서 첫 페이지 폴트가 발생할 때 호출됩니다. */
 	/* TODO: 이 함수를 호출할 때 VA는 사용할 수 있습니다. */
 
-	struct file_info *fi=aux;
-	struct file *file=fi->file;
-	off_t ofs = fi->ofs;
-	uint8_t *kva = page->frame->kva;
-	size_t page_read_bytes = fi->read_bytes < PGSIZE ? fi->read_bytes : PGSIZE;
-	size_t page_zero_bytes = PGSIZE - page_read_bytes;
+	// struct file_info *fi=aux;
+	// struct file *file=fi->file;
+	// off_t ofs = fi->ofs;
+	// uint8_t *kva = page->frame->kva;
+	// size_t page_read_bytes = fi->read_bytes < PGSIZE ? fi->read_bytes : PGSIZE;
+	// size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-	bool success=false;
-	//파일에서 데이터 읽기 
-	file_seek(file, ofs);
-	int checksize=file_read(file, kva, page_read_bytes); 
-	if(checksize==(int)page_read_bytes){
-		memset(kva+page_read_bytes, 0, page_zero_bytes);
-		success=true;
-	}
+	// bool success=false;
+	// //파일에서 데이터 읽기 
+	// file_seek(file, ofs);
+	// int checksize=file_read(file, kva, page_read_bytes); 
+	// if(checksize==(int)page_read_bytes){
+	// 	memset(kva+page_read_bytes, 0, page_zero_bytes);
+	// 	success=true;
+	// }
 
-	// free(aux);
-	//성공
-	return success;
+	// // free(aux);
+	// //성공
+	// return success;
+	struct file_info *fi = aux;
+    struct file *file = fi->file;
+    off_t ofs = fi->ofs;
+    uint8_t *kva = page->frame->kva;
+
+    // 파일의 남은 크기 계산 (여기서 file_length(file)은 file의 전체크기임.)
+    size_t file_remaining = file_length(file) - ofs;
+    size_t page_read_bytes = fi->read_bytes < PGSIZE ? fi->read_bytes : PGSIZE;
+    page_read_bytes = page_read_bytes < file_remaining ? page_read_bytes : file_remaining;
+    size_t page_zero_bytes = PGSIZE - page_read_bytes;
+
+    file_seek(file, ofs);
+    int bytes_read = file_read(file, kva, page_read_bytes);
+    if (bytes_read == (int)page_read_bytes) {
+        memset(kva + page_read_bytes, 0, page_zero_bytes);
+        return true;
+    } else if (bytes_read >= 0) {
+        // 파일의 끝에 도달한 경우: 읽은 만큼만 0으로 채움
+        memset(kva + bytes_read, 0, page_zero_bytes + (page_read_bytes - bytes_read));
+        return true;
+    }
+    return false;
  
 }
 
