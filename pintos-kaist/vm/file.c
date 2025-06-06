@@ -133,7 +133,7 @@ static bool lazy_load_file(struct page *page, void *aux)
 
 void *
 do_mmap(void *addr, size_t length, int writable,
-		struct file *file, off_t offset)
+		struct file *file, off_t offset, size_t mmap_length)
 {
 	// aux에 넣어줄 정보
 	struct file_info *aux = malloc(sizeof(struct file_info));
@@ -148,6 +148,7 @@ do_mmap(void *addr, size_t length, int writable,
 	aux->zero_bytes=PGSIZE-length;
 	aux->writable=writable;
 	aux->total_length=file_length(file); 
+	aux->mmap_length = mmap_length;
 
 
 	// TODO: 지연 로딩 함수 포인터 집어넣기
