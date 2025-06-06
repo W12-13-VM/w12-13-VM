@@ -151,6 +151,7 @@ vm_get_victim(void)
 	/* TODO: 교체 정책을 여기서 구현해서 희생자 페이지 찾기 */
 
 	victim= list_pop_front(&frame_table->frame_list);
+	ASSERT(victim!=NULL);
 
 	return victim;
 }
@@ -166,9 +167,10 @@ vm_evict_frame(void)
 		if (!swap_out(page))
 			return NULL;
 		pml4_clear_page(&thread_current()->pml4, page->va);
+		list_remove(&page->frame->frame_elem);
+
 		page->frame = NULL; // 연결 해제
 
-		pml4_clear_page(&thread_current()->pml4, page->va);	
 		return victim;
 	}
 	return NULL;
@@ -189,7 +191,7 @@ vm_get_frame(void)
 	frame->kva= palloc_get_page(PAL_USER | PAL_ZERO);
 	if(frame->kva==NULL){
 		struct frame * vitctim=vm_evict_frame(); //이 안에서 swap out
-		ASSERT(vitctim);
+		ASSERT(vitctim!=NULL);
 		frame->kva=vitctim->kva;
 		
 		free(vitctim);
@@ -272,12 +274,12 @@ static bool
 vm_do_claim_page(struct page *page)
 {
 	struct frame *frame = vm_get_frame();
-	list_push_back(frame_table, &frame->frame_elem);
-
+	
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
-
+	list_push_back(&frame_table->frame_list, &frame->frame_elem);
+	
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	if(!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)){
 		// swap-out? 
