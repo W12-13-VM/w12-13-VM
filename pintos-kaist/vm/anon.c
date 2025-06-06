@@ -13,7 +13,6 @@ static bool anon_swap_out(struct page *page);
 static void anon_destroy(struct page *page);
 
 struct bitmap *swap_table;
-size_t sector_per_page ;
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations anon_ops = {
@@ -33,10 +32,7 @@ void vm_anon_init(void)
 	 * 스왑 테이블 엔트리에 이 엔트리가 비어있다는 비트 필요
 	 * bitmap 공부가 필요할듯
 	 */
-	disk_sector_t size = disk_size(swap_disk);
-	sector_per_page = size / PGSIZE;
-	swap_table = bitmap_create(sector_per_page);
-
+	swap_table = bitmap_create(disk_size(swap_disk) / (PGSIZE / DISK_SECTOR_SIZE));
 }
 
 /* Initialize the file mapping */
@@ -55,35 +51,55 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 static bool
 anon_swap_in(struct page *page, void *kva)
 {
-	struct anon_page *anon_page = &page->anon;
-	int swap_idx = anon_page->swap_idx;
-	// disk_read에서 사용할 버퍼
-	void *buffer[PGSIZE];
 	/** TODO: 페이지 스왑 인
 	 * disk_read를 데이터를 읽고 kva에 데이터 복사
 	 * swap_idx를 -1로 바꿔주어야 함
 	 * 프레임 테이블에 해당 프레임 넣어주기
 	 * 프레임하고 페이지 매핑해주기
 	 */
-	// size_t sector_no=swap_idx * sector_per_page;
-	// for(int i=0; i<sector_per_page; i++){
-	// 	disk_read(swap_disk, sector_no+i, buffer);
-	// }
-	// bitmap_scan_and_flip(swap_table, 0, sector_per_page, 0); //???? 이거맞음?
+
+	struct anon_page *anon_page = &page->anon;
+	int swap_idx = anon_page->swap_idx;
+	if(swap_idx !=-1){
+		for(int i=0; i<8; i++){
+			disk_read(swap_disk, swap_idx * 8 + i , kva + i * DISK_SECTOR_SIZE);
+		}
+		
+		bitmap_set(swap_table, swap_idx, false);
+		anon_page->swap_idx = -1;
+		return true;
+	}
+	return false;
+
 }
 
 /* 페이지의 내용을 스왑 디스크에 기록하여 스왑아웃합니다. */
 static bool
 anon_swap_out(struct page *page)
 {
-	struct anon_page *anon_page = &page->anon;
-	PANIC("TODO");
+	
 	/** TODO: disk_write를 사용하여 disk에 기록
 	 * 섹터 크기는 512바이트라 8번 반복해야합니다
 	 * 비어있는 스왑 슬롯을 스왑 테이블에서 검색
 	 * 검색된 스왑 슬롯 인덱스를 anon_page에 저장
 	 * disk_write를 통해 해당 디스크 섹터에 저장
 	 */
+	
+	struct anon_page *anon_page = &page->anon;
+	struct frame *frame = page->frame;
+
+	int table_idx = bitmap_scan_and_flip(swap_table, 0, 1, 0);
+	ASSERT(table_idx!=BITMAP_ERROR);
+
+	for(int i=0; i<8; i++){
+		disk_write(swap_disk, table_idx*8 +i , frame->kva + i * DISK_SECTOR_SIZE );
+	}
+
+	anon_page->swap_idx=table_idx;
+	page->frame=NULL;
+
+	return true;
+
 }
 
 /* 익명 페이지를 소멸시킵니다. PAGE는 호출자가 해제합니다. */

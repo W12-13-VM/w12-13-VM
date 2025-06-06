@@ -4,6 +4,8 @@
 struct page;
 enum vm_type;
 
+#define SECTORS_PER_PAGE (PGSIZE/BLOCK_SECTOR_SIZE)
+
 struct anon_page
 {
     /* 음수이면 스왑 아웃 상태가 아님 */
