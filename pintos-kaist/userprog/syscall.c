@@ -204,11 +204,11 @@ void sys_munmap(void *addr)
 	struct page * page=spt_find_page(&thread->spt, addr);
 
 	struct file_info *aux = (struct file_info *)page->file.aux;
-	size_t file_length = aux->total_length;
+	size_t target_length = aux->mmap_length;
 
 	void *start_addr = addr;
 	void *cur_addr = addr;
-	void *end_addr = addr + file_length;
+	void *end_addr = addr + target_length;
 
 	for (cur_addr = start_addr; cur_addr < end_addr; cur_addr += PGSIZE) {
 		do_munmap(cur_addr);
@@ -240,7 +240,7 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 
     // 파일 사이즈, length 검사 (이제 file은 NULL 아님이 보장됨)
     int filesize = sys_filesize(fd); 
-    if (filesize == 0 || length == 0)
+    if (filesize == 0 || length == 0 || length > (uintptr_t)addr)
         return MAP_FAILED;
 
     // 매핑하려는 주소 영역 중복 검사
@@ -261,7 +261,7 @@ void *sys_mmap(void *addr, size_t length, int writable, int fd, off_t offset)
 	while (remain_length > 0)
 	{	
 		size_t allocate_length = remain_length > PGSIZE ? PGSIZE : remain_length;
-		if(do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset)==NULL)
+		if(do_mmap(cur_addr, allocate_length, writable, thread_current()->fd_table[fd], cur_offset, length)==NULL)
 			return MAP_FAILED;
 		if(remain_length<allocate_length) break;
 		remain_length -= allocate_length;
