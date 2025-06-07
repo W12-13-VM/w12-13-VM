@@ -66,6 +66,7 @@ file_backed_swap_in(struct page *page, void *kva)
 	lock_acquire(&filesys_lock);
 	if (file_read_at(file, kva, length, offset) != (int)length) {
         // 읽기 실패 시 처리
+		lock_release(&filesys_lock);
         return false;
     }
 	lock_release(&filesys_lock);
