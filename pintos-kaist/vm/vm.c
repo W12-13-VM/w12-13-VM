@@ -194,11 +194,11 @@ vm_get_frame(void)
 
 	frame->kva= palloc_get_page(PAL_USER | PAL_ZERO);
 	if(frame->kva==NULL){
-		struct frame * vitctim=vm_evict_frame(); //이 안에서 swap out
-		ASSERT(vitctim!=NULL);
-		frame->kva=vitctim->kva;
+		struct frame * victim=vm_evict_frame(); //이 안에서 swap out
+		ASSERT(victim!=NULL);
+		frame->kva=victim->kva;
 		
-		free(vitctim);
+		free(victim);
 	}
 	frame->page=NULL;
 	

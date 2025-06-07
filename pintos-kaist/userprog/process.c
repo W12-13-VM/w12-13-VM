@@ -816,9 +816,7 @@ lazy_load_segment(struct page *page, void *aux)
     page_read_bytes = page_read_bytes < file_remaining ? page_read_bytes : file_remaining;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    file_seek(file, ofs);
-    int bytes_read = file_read(file, kva, page_read_bytes);
-    if (bytes_read == (int)page_read_bytes) {
+    int bytes_read = file_read_at(file, kva, page_read_bytes, ofs);    if (bytes_read == (int)page_read_bytes) {
         memset(kva + page_read_bytes, 0, page_zero_bytes);
         return true;
     } else if (bytes_read >= 0) {

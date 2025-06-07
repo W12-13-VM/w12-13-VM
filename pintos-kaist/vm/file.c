@@ -57,16 +57,18 @@ file_backed_swap_in(struct page *page, void *kva)
 	 * 필요시 file_backed_initializer를 수정하세요
 	 */
 
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
 	struct file_info * aux = file_page->aux;
 	struct file *file = aux->file;
 	size_t length= aux->read_bytes;
 	off_t offset = aux->ofs;
 
+	lock_acquire(&filesys_lock);
 	if (file_read_at(file, kva, length, offset) != (int)length) {
         // 읽기 실패 시 처리
         return false;
     }
+	lock_release(&filesys_lock);
 
 	size_t page_zero_bytes = PGSIZE - length;
     if (page_zero_bytes > 0) {
@@ -86,8 +88,9 @@ file_backed_swap_out(struct page *page)
 	 * file_write를 사용하면 될 것 같아요
 	 * dirty_bit 초기화 (pml4_set_dirty)
 	 */
-	struct file_page *file_page UNUSED = &page->file;
+	struct file_page *file_page = &page->file;
 	struct file_info *aux=file_page->aux;
+
 	uint32_t read_bytes = aux->read_bytes;
 	uint32_t zero_bytes = aux->zero_bytes;
 	struct file * file = aux->file;
@@ -101,8 +104,8 @@ file_backed_swap_out(struct page *page)
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
 
-	page->frame->page=NULL;
-	page->frame=NULL;
+	// page->frame->page=NULL;
+	// page->frame=NULL;
 
 	return true;
 
@@ -127,6 +130,14 @@ file_backed_destroy(struct page *page)
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
 
+	if (page->frame != NULL)
+	{
+		// 물리 페이지를 해제하고, frame 구조체도 동적 메모리 해제
+		palloc_free_page(page->frame->kva);
+		free(page->frame);
+		page->frame = NULL;
+	}	
+	
 	// 최종적으로 사용자 가상 주소 공간에서 해당 페이지 매핑을 제거
 	pml4_clear_page(thread_current()->pml4, page->va);
 
@@ -153,8 +164,7 @@ static bool lazy_load_file(struct page *page, void *aux)
     page_read_bytes = page_read_bytes < file_remaining ? page_read_bytes : file_remaining;
     size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-    file_seek(file, ofs);
-    int bytes_read = file_read(file, kva, page_read_bytes);
+    int bytes_read = file_read_at(file, kva, page_read_bytes, ofs);
     if (bytes_read == (int)page_read_bytes) {
         memset(kva + page_read_bytes, 0, page_zero_bytes);
         return true;
@@ -232,7 +242,7 @@ void do_munmap(void *addr)
 	// 페이지 제거
 	hash_delete(&thread->spt.spt_hash, &page->hash_elem);
 	munmap_cleaner(page);
-	free(page);
+	// free(page);
 	pml4_clear_page(thread->pml4, pg_round_down(addr));
 
 }
