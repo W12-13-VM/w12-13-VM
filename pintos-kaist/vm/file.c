@@ -48,28 +48,64 @@ bool file_backed_initializer(struct page *page, enum vm_type type, void *kva)
 static bool
 file_backed_swap_in(struct page *page, void *kva)
 {
-	struct file_page *file_page UNUSED = &page->file;
 	// swap_in을 위한 버퍼
-	void *buffer[PGSIZE];
+	// void *buffer[PGSIZE];
 	/** TODO: 파일에서 정보를 읽어와 kva에 복사하세요
 	 * aux에 저장된 백업 정보를 사용하세요
 	 * file_open과 read를 사용하면 될 것 같아요
 	 * 파일 시스템 동기화가 필요할수도 있어요
 	 * 필요시 file_backed_initializer를 수정하세요
 	 */
+
+	struct file_page *file_page UNUSED = &page->file;
+	struct file_info * aux = file_page->aux;
+	struct file *file = aux->file;
+	size_t length= aux->read_bytes;
+	off_t offset = aux->ofs;
+
+	if (file_read_at(file, kva, length, offset) != (int)length) {
+        // 읽기 실패 시 처리
+        return false;
+    }
+
+	size_t page_zero_bytes = PGSIZE - length;
+    if (page_zero_bytes > 0) {
+        memset(kva + length, 0, page_zero_bytes);
+    }
+
+    return true;
 }
 
 /* 페이지의 내용을 파일에 기록(writeback)하여 스왑아웃합니다. */
 static bool
 file_backed_swap_out(struct page *page)
 {
-	struct file_page *file_page UNUSED = &page->file;
 	/** TODO: dirty bit 확인해서 write back
 	 * pml4_is_dirty를 사용해서 dirty bit를 확인하세요
 	 * write back을 할 때는 aux에 저장된 파일 정보를 사용
 	 * file_write를 사용하면 될 것 같아요
 	 * dirty_bit 초기화 (pml4_set_dirty)
 	 */
+	struct file_page *file_page UNUSED = &page->file;
+	struct file_info *aux=file_page->aux;
+	uint32_t read_bytes = aux->read_bytes;
+	uint32_t zero_bytes = aux->zero_bytes;
+	struct file * file = aux->file;
+	off_t offset=aux->ofs;
+
+	if(pml4_is_dirty(thread_current()->pml4, page->va)){
+		
+		lock_acquire(&filesys_lock);
+		file_write_at(file, page->frame->kva, read_bytes, offset);
+		lock_release(&filesys_lock);
+		pml4_set_dirty(thread_current()->pml4, page->va, 0);
+	}
+
+	page->frame->page=NULL;
+	page->frame=NULL;
+
+	return true;
+
 }
 
 /* 파일 기반 페이지를 소멸시킵니다. PAGE는 호출자가 해제합니다. */
@@ -90,12 +126,11 @@ file_backed_destroy(struct page *page)
 		lock_release(&filesys_lock);
 		pml4_set_dirty(thread_current()->pml4, page->va, 0);
 	}
-	// decrease_mapping_count(file);
-//aux에 end 필드를 추가하던지... 어쨌든 이건 나중에 
-	// if(check_mapping_count(file)==0){
-	// 	file_close(file);
-	// }
- 	free(aux);
+
+	// 최종적으로 사용자 가상 주소 공간에서 해당 페이지 매핑을 제거
+	pml4_clear_page(thread_current()->pml4, page->va);
+
+	free(aux);
 }
 
 /* Do the mmap */
