@@ -139,7 +139,7 @@ bool spt_insert_page(struct supplemental_page_table *spt,
 void spt_remove_page(struct supplemental_page_table *spt, struct page *page)
 {
 	hash_delete(&spt->spt_hash, &page->hash_elem);	
-	vm_dealloc_page(page);
+	// vm_dealloc_page(page); //<< 이거 쓰면 swap out~->swap in이 안될 것 같은데? 
 
 }
 
@@ -150,7 +150,11 @@ vm_get_victim(void)
 	struct frame *victim;
 	/* TODO: 교체 정책을 여기서 구현해서 희생자 페이지 찾기 */
 
-	victim= list_pop_front(&frame_table->frame_list);
+	ASSERT(list_empty(&frame_table->frame_list)==false);
+		
+
+	victim = list_entry(list_pop_front(&frame_table->frame_list), struct frame, frame_elem);
+	ASSERT(victim!=NULL);
 
 	return victim;
 }
@@ -160,14 +164,22 @@ vm_get_victim(void)
 static struct frame *
 vm_evict_frame(void)
 {
-	struct frame *victim UNUSED = vm_get_victim();
+	struct frame *victim  = vm_get_victim();
+	if(victim==NULL) return NULL;	
 
+	struct page *page =victim->page;
+	if (page) {
+		if (!swap_out(page))
+			return NULL;
+		pml4_clear_page(thread_current()->pml4, page->va);
+		// list_remove(&page->frame->frame_elem);
 
-	/** TODO: 여기서 swap_out 매크로를 호출??
-	 *	pml4_clear_page를 아마 사용?? (잘 모름)
-	 */
+		page->frame = NULL; // 연결 해제
 
+		return victim;
+	}
 	return NULL;
+
 }
 
 /* palloc()을 사용하여 프레임을 할당합니다.
@@ -178,16 +190,21 @@ static struct frame *
 vm_get_frame(void)
 {
 	struct frame *frame = malloc(sizeof(struct frame));
-	frame->kva= palloc_get_page(PAL_USER | PAL_ZERO);
-	frame->page=NULL;
-	if(frame ==NULL){
-		// frame=vm_evict_frame(); //이 안에서 swap out
-		PANIC("TODO");
-	}
+	ASSERT(frame!=NULL);
 
+	frame->kva= palloc_get_page(PAL_USER | PAL_ZERO);
+	if(frame->kva==NULL){
+		struct frame * victim=vm_evict_frame(); //이 안에서 swap out
+		ASSERT(victim!=NULL);
+		frame->kva=victim->kva;
+		
+		free(victim);
+	}
+	frame->page=NULL;
+	
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
-	list_push_back(frame_table, &frame->frame_elem);
+	ASSERT(frame->kva!=NULL);
 	return frame;
 }
 
@@ -243,7 +260,7 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
 void vm_dealloc_page(struct page *page)
 {
 	destroy(page);
-	free(page);
+	free(page); 
 }
 
 /* VA에 할당된 페이지를 요구합니다 . */
@@ -261,10 +278,12 @@ static bool
 vm_do_claim_page(struct page *page)
 {
 	struct frame *frame = vm_get_frame();
+	
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
-
+	list_push_back(&frame_table->frame_list, &frame->frame_elem);
+	
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	if(!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)){
 		// swap-out? 

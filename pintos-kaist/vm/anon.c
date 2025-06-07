@@ -13,7 +13,6 @@ static bool anon_swap_out(struct page *page);
 static void anon_destroy(struct page *page);
 
 struct bitmap *swap_table;
-size_t sector_per_page ;
 
 /* DO NOT MODIFY this struct */
 static const struct page_operations anon_ops = {
@@ -33,20 +32,21 @@ void vm_anon_init(void)
 	 * 스왑 테이블 엔트리에 이 엔트리가 비어있다는 비트 필요
 	 * bitmap 공부가 필요할듯
 	 */
-	disk_sector_t size = disk_size(swap_disk);
-	sector_per_page = size / PGSIZE;
-	swap_table = bitmap_create(sector_per_page);
-
+	swap_table = bitmap_create(disk_size(swap_disk) / (PGSIZE / DISK_SECTOR_SIZE));
 }
 
 /* Initialize the file mapping */
 bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 {
+	if(page==NULL){
+		return false;
+	}
 	/* Set up the handler */
 	page->operations = &anon_ops;
 
 	struct anon_page *anon_page = &page->anon;
 	anon_page->swap_idx = -1;
+	
 
 	return true;
 }
@@ -55,35 +55,64 @@ bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 static bool
 anon_swap_in(struct page *page, void *kva)
 {
-	struct anon_page *anon_page = &page->anon;
-	int swap_idx = anon_page->swap_idx;
-	// disk_read에서 사용할 버퍼
-	void *buffer[PGSIZE];
 	/** TODO: 페이지 스왑 인
 	 * disk_read를 데이터를 읽고 kva에 데이터 복사
 	 * swap_idx를 -1로 바꿔주어야 함
 	 * 프레임 테이블에 해당 프레임 넣어주기
 	 * 프레임하고 페이지 매핑해주기
 	 */
-	// size_t sector_no=swap_idx * sector_per_page;
-	// for(int i=0; i<sector_per_page; i++){
-	// 	disk_read(swap_disk, sector_no+i, buffer);
-	// }
-	// bitmap_scan_and_flip(swap_table, 0, sector_per_page, 0); //???? 이거맞음?
+
+	struct anon_page *anon_page = &page->anon;
+	int swap_idx = anon_page->swap_idx;
+	if(swap_idx !=-1){
+		for(int i=0; i<8; i++){
+			disk_read(swap_disk, (swap_idx * 8 )+ i , kva + (i * DISK_SECTOR_SIZE));
+		}
+		
+		bitmap_set(swap_table, swap_idx, false);
+		anon_page->swap_idx = -1;
+		return true;
+	}
+	return false;
+
 }
 
 /* 페이지의 내용을 스왑 디스크에 기록하여 스왑아웃합니다. */
 static bool
 anon_swap_out(struct page *page)
 {
-	struct anon_page *anon_page = &page->anon;
-	PANIC("TODO");
+	
 	/** TODO: disk_write를 사용하여 disk에 기록
 	 * 섹터 크기는 512바이트라 8번 반복해야합니다
 	 * 비어있는 스왑 슬롯을 스왑 테이블에서 검색
 	 * 검색된 스왑 슬롯 인덱스를 anon_page에 저장
 	 * disk_write를 통해 해당 디스크 섹터에 저장
 	 */
+	if(page==NULL){
+		return false;
+	}
+	struct anon_page *anon_page = &page->anon;
+	struct frame *frame = page->frame;
+
+	int table_idx = bitmap_scan_and_flip(swap_table, 0, 1, 0);
+	if (table_idx == BITMAP_ERROR)
+	{
+		ASSERT(bitmap_test(swap_table, table_idx) == false);
+		return false;
+	}
+
+
+	for(int i=0; i<8; i++){
+		disk_write(swap_disk, (table_idx * 8) + i, frame->kva + (DISK_SECTOR_SIZE * i));
+	}
+
+	page->frame->page = NULL;
+	page->frame = NULL;
+
+	anon_page->swap_idx=table_idx;
+
+	return true;
+
 }
 
 /* 익명 페이지를 소멸시킵니다. PAGE는 호출자가 해제합니다. */
@@ -95,13 +124,29 @@ anon_swap_out(struct page *page)
 static void
 anon_destroy(struct page *page)
 {
-	struct anon_page *anon_page = &page->anon;
+    // struct anon_page *anon_page = &page->anon;
 
+    // pml4_clear_page(thread_current()->pml4, page->va);
+
+    // if (anon_page->swap_idx != -1)
+    //     bitmap_set(swap_table, anon_page->swap_idx, false);
+
+    // if (page->frame != NULL) {
+        // list_remove(&page->frame->frame_elem);
+    //     palloc_free_page(page->frame->kva);
+    //     page->frame->page = NULL; // 연결 해제 (구현에 따라)
+    //     free(page->frame);
+    // }
+
+	struct anon_page *anon_page = &page->anon;
+	// swap_idx가 0보다 작을 경우는 페이지가 스왑 아웃이 된 적이 없거나 이미 복구 되어 swap_idx가 -1이면 추가 작업 X, 종료
 	pml4_clear_page(thread_current()->pml4, page->va);
-	
-	if(page->frame != NULL){
-		list_remove(&page->frame->frame_elem);
-		palloc_free_page(page->frame->kva);
-		free(page->frame);
+	if (anon_page->swap_idx < 0)
+	{
+		return;
 	}
+
+	// 스왑 테이블에서 해당 스왑 슬롯을 비어있는 상태로 표시
+	// 즉, 더 이상 해당 스왑 슬롯은 사용되지 않으며, 이후 다른 페이지가 재사용 가능
+	bitmap_reset(swap_table, anon_page->swap_idx);
 }
