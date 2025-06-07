@@ -38,11 +38,15 @@ void vm_anon_init(void)
 /* Initialize the file mapping */
 bool anon_initializer(struct page *page, enum vm_type type, void *kva)
 {
+	if(page==NULL){
+		return false;
+	}
 	/* Set up the handler */
 	page->operations = &anon_ops;
 
 	struct anon_page *anon_page = &page->anon;
 	anon_page->swap_idx = -1;
+	
 
 	return true;
 }
@@ -62,7 +66,7 @@ anon_swap_in(struct page *page, void *kva)
 	int swap_idx = anon_page->swap_idx;
 	if(swap_idx !=-1){
 		for(int i=0; i<8; i++){
-			disk_read(swap_disk, swap_idx * 8 + i , kva + i * DISK_SECTOR_SIZE);
+			disk_read(swap_disk, (swap_idx * 8 )+ i , kva + (i * DISK_SECTOR_SIZE));
 		}
 		
 		bitmap_set(swap_table, swap_idx, false);
@@ -84,19 +88,28 @@ anon_swap_out(struct page *page)
 	 * 검색된 스왑 슬롯 인덱스를 anon_page에 저장
 	 * disk_write를 통해 해당 디스크 섹터에 저장
 	 */
-	
+	if(page==NULL){
+		return false;
+	}
 	struct anon_page *anon_page = &page->anon;
 	struct frame *frame = page->frame;
 
 	int table_idx = bitmap_scan_and_flip(swap_table, 0, 1, 0);
-	ASSERT(table_idx!=BITMAP_ERROR);
-
-	for(int i=0; i<8; i++){
-		disk_write(swap_disk, table_idx*8 +i , frame->kva + i * DISK_SECTOR_SIZE );
+	if (table_idx == BITMAP_ERROR)
+	{
+		ASSERT(bitmap_test(swap_table, table_idx) == false);
+		return false;
 	}
 
+
+	for(int i=0; i<8; i++){
+		disk_write(swap_disk, (table_idx * 8) + i, frame->kva + (DISK_SECTOR_SIZE * i));
+	}
+
+	page->frame->page = NULL;
+	page->frame = NULL;
+
 	anon_page->swap_idx=table_idx;
-	page->frame=NULL;
 
 	return true;
 

@@ -150,7 +150,10 @@ vm_get_victim(void)
 	struct frame *victim;
 	/* TODO: 교체 정책을 여기서 구현해서 희생자 페이지 찾기 */
 
-	victim= list_entry(list_pop_front(&frame_table->frame_list), struct frame, frame_elem);
+	ASSERT(list_empty(&frame_table->frame_list)==false);
+		
+
+	victim = list_entry(list_pop_front(&frame_table->frame_list), struct frame, frame_elem);
 	ASSERT(victim!=NULL);
 
 	return victim;
@@ -162,11 +165,13 @@ static struct frame *
 vm_evict_frame(void)
 {
 	struct frame *victim  = vm_get_victim();
+	if(victim==NULL) return NULL;	
+
 	struct page *page =victim->page;
 	if (page) {
 		if (!swap_out(page))
 			return NULL;
-		pml4_clear_page(&thread_current()->pml4, page->va);
+		pml4_clear_page(thread_current()->pml4, page->va);
 		// list_remove(&page->frame->frame_elem);
 
 		page->frame = NULL; // 연결 해제
@@ -174,7 +179,6 @@ vm_evict_frame(void)
 		return victim;
 	}
 	return NULL;
-
 
 }
 
