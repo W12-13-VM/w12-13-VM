@@ -124,29 +124,29 @@ anon_swap_out(struct page *page)
 static void
 anon_destroy(struct page *page)
 {
-    // struct anon_page *anon_page = &page->anon;
+    struct anon_page *anon_page = &page->anon;
 
-    // pml4_clear_page(thread_current()->pml4, page->va);
+    pml4_clear_page(thread_current()->pml4, page->va);
 
-    // if (anon_page->swap_idx != -1)
-    //     bitmap_set(swap_table, anon_page->swap_idx, false);
+    if (anon_page->swap_idx != -1)
+        bitmap_set(swap_table, anon_page->swap_idx, false);
 
-    // if (page->frame != NULL) {
-        // list_remove(&page->frame->frame_elem);
-    //     palloc_free_page(page->frame->kva);
-    //     page->frame->page = NULL; // 연결 해제 (구현에 따라)
-    //     free(page->frame);
-    // }
+    if (page->frame != NULL) {
+        list_remove(&page->frame->frame_elem);
+        palloc_free_page(page->frame->kva);
+        page->frame->page = NULL; // 연결 해제 (구현에 따라)
+        free(page->frame);
+    }
 
-	struct anon_page *anon_page = &page->anon;
-	// swap_idx가 0보다 작을 경우는 페이지가 스왑 아웃이 된 적이 없거나 이미 복구 되어 swap_idx가 -1이면 추가 작업 X, 종료
-	pml4_clear_page(thread_current()->pml4, page->va);
-	if (anon_page->swap_idx < 0)
-	{
-		return;
-	}
+	// struct anon_page *anon_page = &page->anon;
+	// // swap_idx가 0보다 작을 경우는 페이지가 스왑 아웃이 된 적이 없거나 이미 복구 되어 swap_idx가 -1이면 추가 작업 X, 종료
+	// pml4_clear_page(thread_current()->pml4, page->va);
+	// if (anon_page->swap_idx < 0)
+	// {
+	// 	return;
+	// }
 
-	// 스왑 테이블에서 해당 스왑 슬롯을 비어있는 상태로 표시
-	// 즉, 더 이상 해당 스왑 슬롯은 사용되지 않으며, 이후 다른 페이지가 재사용 가능
-	bitmap_reset(swap_table, anon_page->swap_idx);
+	// // 스왑 테이블에서 해당 스왑 슬롯을 비어있는 상태로 표시
+	// // 즉, 더 이상 해당 스왑 슬롯은 사용되지 않으며, 이후 다른 페이지가 재사용 가능
+	// bitmap_reset(swap_table, anon_page->swap_idx);
 }
