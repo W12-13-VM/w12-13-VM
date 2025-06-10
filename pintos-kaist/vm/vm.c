@@ -244,7 +244,7 @@ vm_handle_wp(struct page *page)
 /* Return true on success */
 /* 인터럽트 프레임, addr=폴트를 일으킨 주소(코드일 수도있고 데이터일수도 있음),
 user=사용자 접근인지 커널 접근인지, write=true면 쓰기 허용 false면 읽기만
-not_present: true면 존재하지 않는 페이지, false면  */
+not_present: true면 존재하지 않는 페이지, false면 권한없어서 페이지 폴트 에러  */
 bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
 						 bool user UNUSED, bool write , bool not_present )
 {
@@ -257,9 +257,17 @@ bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
     struct page *page = spt_find_page(spt, addr);
 	uintptr_t rsp = thread_current()->user_rsp; // 유저 스택의 rsp 가져오기
 
-	if(write && !not_present ){
-		return vm_handle_wp(page);
-	}else if(!not_present) return false;
+	if (page && write && !not_present) {
+        if (!page->writable) {  
+            return false;     
+        }
+        return vm_handle_wp(page);
+    }
+
+    if (page && !write && !not_present) {
+        return false;
+    }
+
 
 	if(page){
 		return vm_do_claim_page(page);
@@ -365,9 +373,11 @@ bool page_table_copy(struct page* src_page, void *va){
 	struct page *page= spt_find_page(&thread_current()->spt, va);
 	if(page==NULL) return false;
 
-	page->frame=src_page->frame;
-	page->writable=src_page->writable;
-	src_page->frame->r_cnt++;
+	if(page->frame == NULL){
+		page->frame=src_page->frame;
+		page->writable=src_page->writable;
+		src_page->frame->r_cnt++;
+	}
 
 	if(!pml4_set_page(thread_current()->pml4, page->va, src_page->frame->kva, false)){
 		PANIC("TODO");
@@ -427,20 +437,16 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
 		
 			if(!page_table_copy(src_page, upage))
 				return false;
-			
-	
-		  // vm_claim_page으로 요청해서 매핑 & 페이지 타입에 맞게 초기화
-		//   if (!vm_claim_page(upage))
-		// 	 return false;
-	  }
+
+			// 매핑된 프레임에 내용 로딩
+			struct page *dst_page = spt_find_page(dst, upage);
+			memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
+	}
 	  else{
 		return false;
 	  }
 
 
-      // 매핑된 프레임에 내용 로딩
-      struct page *dst_page = spt_find_page(dst, upage);
-      memcpy(dst_page->frame->kva, src_page->frame->kva, PGSIZE);
    }
     return true;
 }
