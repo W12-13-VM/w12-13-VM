@@ -65,8 +65,6 @@ struct page
 
 	/* 구현 필드 */
 	bool writable;
-	// 매핑된 프레임이 스왑되어있는가??
-	bool is_swap;
 
 	//spt용 hash_elem
 	struct hash_elem hash_elem;
@@ -91,6 +89,8 @@ struct frame
 	void *kva;
 	struct page *page;
 	struct list_elem frame_elem;
+
+	int r_cnt; //현재 프레임을 참조하는 페이지 수
 };
 
 /* 페이지 작업을 위한 함수 테이블입니다.
