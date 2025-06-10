@@ -190,6 +190,7 @@ vm_get_frame(void)
 {
 	struct frame *frame = malloc(sizeof(struct frame));
 	ASSERT(frame!=NULL);
+	frame->r_cnt=0;
 
 	frame->kva= palloc_get_page(PAL_USER | PAL_ZERO);
 	if(frame->kva==NULL){
@@ -200,6 +201,8 @@ vm_get_frame(void)
 		free(victim );
 	}
 	frame->page=NULL;
+
+	list_push_back(&frame_table->frame_list, &frame->frame_elem);
 	
 	ASSERT(frame != NULL);
 	ASSERT(frame->page == NULL);
@@ -218,8 +221,24 @@ vm_stack_growth(void *addr)
 
 /* Handle the fault on write_protected page */
 static bool
-vm_handle_wp(struct page *page UNUSED)
+vm_handle_wp(struct page *page)
 {
+	
+	void * old_kva= page->frame->kva;
+	struct frame * frame=vm_get_frame();
+	page->frame=frame;
+	frame->page=page;
+
+	frame->r_cnt++;
+
+	
+	if(!pml4_set_page(thread_current()->pml4, page->va, frame->kva, true)){
+		PANIC("TODO");
+	}
+	
+	memcpy(page->frame->kva, old_kva, PGSIZE);
+
+	return true;
 }
 
 /* Return true on success */
@@ -227,17 +246,20 @@ vm_handle_wp(struct page *page UNUSED)
 user=사용자 접근인지 커널 접근인지, write=true면 쓰기 허용 false면 읽기만
 not_present: true면 존재하지 않는 페이지, false면  */
 bool vm_try_handle_fault(struct intr_frame *f , void *addr ,
-						 bool user UNUSED, bool write UNUSED, bool not_present )
+						 bool user UNUSED, bool write , bool not_present )
 {
 
 	// ASSERT(addr!=NULL);
-	if (!not_present) return false;
     if (!is_user_vaddr(addr)) return false;
 
     struct supplemental_page_table *spt = &thread_current()->spt;
 	// addr = pg_round_down(addr);
     struct page *page = spt_find_page(spt, addr);
 	uintptr_t rsp = thread_current()->user_rsp; // 유저 스택의 rsp 가져오기
+
+	if(write && !not_present ){
+		return vm_handle_wp(page);
+	}else if(!not_present) return false;
 
 	if(page){
 		return vm_do_claim_page(page);
@@ -281,8 +303,9 @@ vm_do_claim_page(struct page *page)
 	/* Set links */
 	frame->page = page;
 	page->frame = frame;
-	list_push_back(&frame_table->frame_list, &frame->frame_elem);
 	
+	frame->r_cnt++;
+
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	if(!pml4_set_page(thread_current()->pml4, page->va, frame->kva, page->writable)){
 		// swap-out? 
@@ -338,7 +361,20 @@ static void *duplicate_aux(struct page *src_page, enum vm_type type)
    
 }
 
+bool page_table_copy(struct page* src_page, void *va){
+	struct page *page= spt_find_page(&thread_current()->spt, va);
+	if(page==NULL) return false;
 
+	page->frame=src_page->frame;
+	page->writable=src_page->writable;
+	src_page->frame->r_cnt++;
+
+	if(!pml4_set_page(thread_current()->pml4, page->va, src_page->frame->kva, false)){
+		PANIC("TODO");
+	}
+
+	return swap_in(page, src_page->frame->kva);
+}
 
 bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct supplemental_page_table *src )
 {
@@ -388,10 +424,14 @@ bool supplemental_page_table_copy(struct supplemental_page_table *dst , struct s
 			 // init(lazy_load_segment)는 page_fault가 발생할때 호출됨
 			 // 지금 만드는 페이지는 page_fault가 일어날 때까지 기다리지 않고 바로 내용을 넣어줘야 하므로 필요 없음
 			 return false;
+		
+			if(!page_table_copy(src_page, upage))
+				return false;
+			
 	
 		  // vm_claim_page으로 요청해서 매핑 & 페이지 타입에 맞게 초기화
-		  if (!vm_claim_page(upage))
-			 return false;
+		//   if (!vm_claim_page(upage))
+		// 	 return false;
 	  }
 	  else{
 		return false;
